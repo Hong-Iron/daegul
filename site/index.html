@@ -63,10 +63,48 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
   background: var(--acc); color: #1b1408; font-family: inherit; }
 .btn:disabled { opacity: .5; }
 .btn.sub { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; font-weight: 700; }
-#start h1 { margin: 0; font-size: 64px; line-height: 1; color: var(--acc); text-align: center; }
-#start .tag { text-align: center; margin: 10px 0 18px; font-size: 16px; font-weight: 700; }
-#start ul { margin: 0 0 20px; padding: 0 0 0 18px; color: var(--mute); font-size: 14px; line-height: 1.65; }
-#start .best { text-align: center; color: var(--mute); font-size: 13px; margin-top: 12px; }
+/* start page: course map, name, start button, ranking */
+.page { position: fixed; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; background: var(--bg); z-index: 10; touch-action: pan-y; }
+.wrap { max-width: 440px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 28px); }
+.top { text-align: center; }
+.top h1 { margin: 0; font-size: 60px; line-height: 1; color: var(--acc); }
+.top p { margin: 8px 0 0; font-size: 16px; font-weight: 700; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
+.head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.head span { color: var(--mute); font-size: 12px; }
+#map svg { display: block; width: 100%; height: auto; margin-top: 8px; overflow: hidden; }
+#map svg text { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--mute); margin-top: 6px; }
+.chip { background: transparent; border: 1px solid var(--line); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+#route { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; }
+#route li { white-space: nowrap; }
+#route li b { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; border-radius: 9px; background: var(--acc); color: #1b1408; text-align: center; font-size: 11px; margin-right: 4px; padding: 0 4px; box-sizing: border-box; }
+#route li.more { color: var(--mute); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #77707e; margin-right: 4px; vertical-align: -1px; }
+.dot.on { background: var(--acc); }
+#mapPick { margin-left: auto; color: var(--ink); font-weight: 700; }
+@keyframes ring { 0% { r: 4px; opacity: .9; } 100% { r: 15px; opacity: 0; } }
+.ring { animation: ring 1.6s ease-out infinite; }
+.card label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+#name { width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-size: 17px;
+  padding: 12px; font-family: inherit; -webkit-user-select: text; user-select: text; touch-action: auto; }
+#name:focus { outline: none; border-color: var(--acc); }
+.msg { min-height: 18px; font-size: 12px; color: var(--mute); margin: 6px 0 10px; }
+.msg.bad { color: var(--bad); }
+.best { text-align: center; color: var(--mute); font-size: 13px; margin-top: 10px; }
+.tabs button { background: transparent; border: 1px solid var(--line); color: var(--mute); font: inherit; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; margin-left: 4px; cursor: pointer; }
+.tabs button.on { background: var(--acc); color: #1b1408; border-color: var(--acc); }
+#rank { list-style: none; margin: 8px 0 0; padding: 0; }
+#rank li { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; padding: 8px 2px; border-top: 1px solid var(--line); font-size: 14px; }
+#rank li:first-child { border-top: 0; }
+#rank .n { font-family: "Black Han Sans", sans-serif; color: var(--mute); text-align: center; }
+#rank li:nth-child(-n+3) .n { color: var(--acc); }
+#rank .who b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rank .who span { font-size: 11px; color: var(--mute); }
+#rank .sc { font-family: "Black Han Sans", sans-serif; font-size: 16px; }
+#rank li.me { background: rgba(255,166,32,.1); border-radius: 6px; }
+#rank li.empty { display: block; color: var(--mute); text-align: center; padding: 14px 0; border: 0; }
+.how ul { margin: 8px 0 0; padding-left: 18px; color: var(--mute); font-size: 13px; line-height: 1.6; }
 #cards h2 { margin: 0 0 4px; font-size: 22px; text-align: center; }
 #cards p.h { margin: 0 0 14px; text-align: center; color: var(--mute); font-size: 13px; }
 .card { display: block; width: 100%; text-align: left; background: #2c2832; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px;
@@ -82,7 +120,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #end dt { font-size: 12px; color: var(--mute); }
 #end dd { margin: 2px 0 0; font-size: 20px; }
 #end dl div.wide { grid-column: span 2; }
-#end .rec { text-align: center; font-size: 13px; color: var(--acc); margin: -6px 0 14px; min-height: 1em; }
+#end .rec { text-align: center; font-size: 13px; color: var(--acc); margin: -6px 0 8px; min-height: 1em; }
+#end #eRank { color: var(--ink); font-weight: 700; margin-bottom: 14px; }
 #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--mute); font-size: 14px; z-index: 20; background: var(--bg); }
 </style>
 </head>
@@ -106,18 +145,36 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 <div id="warn" class="big">멈추면 끝!</div>
 <div id="joy" hidden><i></i></div>
 
-<div id="start" class="layer" hidden>
-  <div class="panel">
-    <h1 class="big">데굴</h1>
-    <div class="tag">전국 대학을 굴러 내려가 봐</div>
-    <ul>
-      <li>북쪽 끝 경동대에서 출발해 제주대까지, 대학 337곳이 내리막으로 이어져 있어요.</li>
-      <li>화면을 좌우로 끌면 방향을 틀어요. 두 번 톡 치면 돌진해요.</li>
-      <li>공 지름의 절반보다 작은 건 붙고, 큰 건물은 피하거나 부수세요.</li>
-      <li>대학에 들어설 때마다 +100점. 멈추면 끝이에요.</li>
-    </ul>
-    <button class="btn" id="go" disabled>불러오는 중…</button>
-    <div class="best" id="best"></div>
+<div id="start" class="page" hidden>
+  <div class="wrap">
+    <header class="top"><h1 class="big">데굴</h1><p>전국 대학을 굴러 내려가 봐</p></header>
+    <section class="card">
+      <div class="head"><b>이번 판 코스</b><button id="shuffle" class="chip">순서 섞기</button></div>
+      <div id="map"></div>
+      <ol id="route"></ol>
+      <div class="legend"><span id="mapInfo"></span><span id="mapPick">점을 누르면 학교 이름</span></div>
+    </section>
+    <section class="card">
+      <label for="name">랭킹에 올릴 이름</label>
+      <input id="name" maxlength="16" autocomplete="nickname" enterkeyhint="go" placeholder="2~10글자">
+      <div id="nameMsg" class="msg">랭킹에 보일 이름이에요</div>
+      <button class="btn" id="go" disabled>불러오는 중…</button>
+      <div class="best" id="best"></div>
+    </section>
+    <section class="card">
+      <div class="head"><b>랭킹</b><div class="tabs"><button data-scope="today" class="on">오늘</button><button data-scope="all">전체</button></div></div>
+      <ol id="rank"></ol>
+      <div id="rankMe" class="msg"></div>
+    </section>
+    <section class="card how">
+      <b>하는 법</b>
+      <ul>
+        <li>전국 대학 337곳이 판마다 무작위 순서로 내리막에 이어져요. 지도의 번호가 이번 판의 순서예요.</li>
+        <li>화면을 좌우로 끌면 방향을 틀어요. 두 번 톡 치면 돌진해요.</li>
+        <li>공 지름의 절반보다 작은 건 붙고, 큰 건물은 피하거나 부수세요.</li>
+        <li>대학에 들어설 때마다 +100점. 멈추면 끝이에요.</li>
+      </ul>
+    </section>
   </div>
 </div>
 
@@ -141,7 +198,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
       <div class="wide"><dt>마지막 도착</dt><dd id="eLast"></dd></div>
     </dl>
     <div class="rec" id="eRec"></div>
+    <div class="rec" id="eRank"></div>
     <button class="btn" id="again">한 판 더</button>
+    <button class="btn sub" id="home">지도와 랭킹 보기</button>
     <button class="btn sub" id="share">결과 카드 저장</button>
   </div>
 </div>
@@ -155,6 +214,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 <script type="module">
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { checkName, nameKey } from './names.js';
 
 const $ = (id) => document.getElementById(id);
 const QS = new URLSearchParams(location.search);
@@ -169,18 +229,29 @@ const pick = (a) => a[Math.floor(srand() * a.length)];
 function hashStr(s) { let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 // ============ course: campuses north → south, one after another down a long slope
-let COURSE;
+// every campus, in the file's order (north → south); k is its place on the start-page map
+let ALL;
 try {
-  COURSE = await (await fetch('course/index.json')).json();
+  ALL = await (await fetch('course/index.json')).json();
 } catch (err) {
   $('loading').textContent = '코스 데이터를 불러오지 못했어요. 새로고침해 주세요.';
   throw err;
 }
+ALL.forEach((c, k) => { c.k = k; });
 const SLOPE = 0.1, GAP = 60, SIDE = 40;
-{
+// this run's course: every campus once, in a fresh random order, one after another down the slope
+const COURSE = [];
+let GEN = 0;                        // bumps on every new order, so files still on their way for the old one are ignored
+function newOrder() {
+  for (const c of [...LOADED]) unloadSeg(c);
+  GEN++;
+  const a = [...ALL];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  COURSE.length = 0; COURSE.push(...a);
   let z = 0;
   COURSE.forEach((c, i) => {
     c.i = i; c.zs = z; c.zc = z + 20 + c.d / 2; c.ze = z + c.d + 40; c.halfW = Math.max(70, c.w / 2 + SIDE);
+    c.loading = false;
     z = c.ze + GAP;
   });
 }
@@ -651,10 +722,11 @@ const LOADED = [];
 async function loadSeg(c) {
   if (c.loaded || c.loading) return;
   c.loading = true;
+  const gen = GEN;
   try {
     if (!c.data) c.data = await (await fetch(`course/${c.code}.json`)).json();
   } catch { c.loading = false; return; }
-  if (!c.loading) return;           // unloaded while the file was on its way
+  if (!c.loading || gen !== GEN) { c.loading = false; return; }   // unloaded, or the order changed, while the file was on its way
   const d = c.data;
   // bigger campuses get bigger blocks so the block budget holds
   let est = 0;
@@ -757,7 +829,7 @@ const CARDS = [
 ];
 // stuck things leave gaps, so the ball gains more volume than the things themselves; less so as it grows,
 // so big buildings stay something to dodge
-const grow = () => 6 / (1 + S.r / 6 + (S.r / 10) ** 3);
+const grow = () => 6 / (1 + S.r / 6);
 const DOWN = 11;               // pull down the slope (m/s²)
 // stopped = has not gained 4 m down the course for this long (bouncing in place against a wall counts too)
 const STALL_D = 4, STALL_T = 1.6;
@@ -1397,6 +1469,8 @@ function showEnd() {
   $('end').hidden = false;
   $('hud').hidden = true;
   $('warn').classList.remove('on');
+  $('eRank').textContent = playerName && !BOT.on ? '랭킹에 올리는 중…' : '';
+  if (playerName && !BOT.on) submitRun();
 }
 async function shareCard() {
   // frame the ball, render once, and copy the frame before the browser clears it
@@ -1454,16 +1528,121 @@ function startGame() {
   S.mode = 'play';
   S.camDist = 7 + S.r * 5.5;
   $('start').hidden = true; $('end').hidden = true; $('hud').hidden = false;
+  last = performance.now();
   hudCache = '';
 }
-$('go').onclick = () => { initAudio(); startGame(); toast('화면을 좌우로 끌어서 방향을 틀어요', 2200); };
-$('again').onclick = async () => { initAudio(); $('end').hidden = true; await prepare(); startGame(); };
+// ============ start page: course map, name, ranking
+const RANK = QS.get('rank') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://degul-rank.smash-rank.workers.dev');
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+let playerName = '', ready = false, rankScope = 'today', MAP = null;
+try { playerName = checkName(localStorage.getItem('degul-name') || '').name || ''; } catch {}
+async function api(path, opt = {}) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 7000);
+  try { return await (await fetch(RANK + path, { ...opt, signal: ctl.signal })).json(); } finally { clearTimeout(t); }
+}
+async function submitRun() {
+  try {
+    const r = await api('/run', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: playerName, score: score(), picks: S.picks, arrived: S.arrived, last: S.last, dia: +S.maxD.toFixed(2), secs: +S.t.toFixed(1) }) });
+    $('eRank').textContent = r.ok ? `랭킹 전체 ${r.rank}위 · 오늘 ${r.today}위` : r.why === 'too often' ? '조금 뒤에 다시 올릴 수 있어요' : '이 기록은 랭킹에 올리지 못했어요';
+  } catch { $('eRank').textContent = '랭킹 서버에 닿지 않아요'; }
+}
+const svgText = (x, y, t, anchor, color, size = 15) =>
+  `<text x="${x}" y="${y}" font-size="${size}" font-weight="700" fill="${color}" text-anchor="${anchor}" paint-order="stroke" stroke="#232028" stroke-width="5" stroke-linejoin="round">${esc(t)}</text>`;
+// South Korea with every campus as a dot; this run's first stops get numbered pins, joined in the order the ball meets them
+const ROUTE_SHOWN = 10;
+async function drawMap() {
+  if (!MAP) try { MAP = await (await fetch('course/map.json')).json(); } catch { $('map').textContent = '지도를 불러오지 못했어요'; return; }
+  const n = COURSE.length, at = (c) => MAP.pts[c.k], first = COURSE.slice(0, ROUTE_SHOWN);
+  let g = `<svg viewBox="0 0 ${MAP.w} ${MAP.h}" role="img" aria-label="이번 판 코스: ${esc(COURSE[0].label)}에서 출발해 ${n}곳을 지나는 지도">`;
+  g += `<path d="${MAP.land.join('')}" fill="#2c2833" stroke="#4a4552" stroke-width=".7" stroke-linejoin="round"/>`;
+  g += ALL.map((c) => { const [x, y] = MAP.pts[c.k]; return `<circle cx="${x}" cy="${y}" r="1.7" fill="#77707e"/>`; }).join('');
+  g += `<polyline points="${first.map((c) => at(c).join(',')).join(' ')}" fill="none" stroke="#ffa620" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`;
+  // numbered pins, last one drawn first so pin 1 stays on top
+  for (let i = first.length - 1; i >= 0; i--) {
+    const [x, y] = at(first[i]), r = i === 0 ? 10 : 8;
+    g += `<circle cx="${x}" cy="${y}" r="${r}" fill="${i === 0 ? '#f4efe6' : '#ffa620'}" stroke="#16141a" stroke-width="2"/>`;
+    g += `<text x="${x}" y="${y + 4}" font-size="${i === 0 ? 12 : 10}" font-weight="800" fill="#1b1408" text-anchor="middle">${i + 1}</text>`;
+  }
+  const [sx, sy] = at(COURSE[0]), right = sx < MAP.w * 0.55;
+  g += svgText(sx + (right ? 14 : -14), sy - 10, `출발 · ${COURSE[0].label}`, right ? 'start' : 'end', '#f4efe6');
+  g += '<circle id="pickDot" r="0" fill="none" stroke="#f4efe6" stroke-width="2"/></svg>';
+  $('map').innerHTML = g;
+  $('route').innerHTML = first.map((c, i) => `<li><b>${i + 1}</b>${esc(c.label)}</li>`).join('') + `<li class="more">그 뒤로 ${n - first.length}곳</li>`;
+  $('mapInfo').textContent = `${n}곳 · 약 ${Math.round(COURSE[n - 1].ze / 1000)} km`;
+  const svg = $('map').firstElementChild;
+  svg.addEventListener('click', (ev) => {
+    const pt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    let best = null, bd = 14 ** 2;
+    for (const c of ALL) { const [x, y] = MAP.pts[c.k], d = (x - pt.x) ** 2 + (y - pt.y) ** 2; if (d < bd) { bd = d; best = c; } }
+    const dot = $('pickDot');
+    if (!best) { dot.setAttribute('r', 0); return; }
+    dot.setAttribute('cx', MAP.pts[best.k][0]); dot.setAttribute('cy', MAP.pts[best.k][1]); dot.setAttribute('r', 6);
+    $('mapPick').textContent = `${best.i + 1}번째 · ${best.label}`;
+  });
+}
+async function loadRank() {
+  const list = $('rank');
+  list.innerHTML = '<li class="empty">불러오는 중…</li>';
+  try {
+    const { rows } = await api(`/board?scope=${rankScope}`), mine = playerName ? nameKey(playerName) : '';
+    list.innerHTML = rows.length ? rows.map((r, i) => `<li class="${nameKey(r.name) === mine ? 'me' : ''}"><span class="n">${i + 1}</span>
+      <span class="who"><b>${esc(r.name)}</b><span>${r.last ? `${esc(r.last)}까지 · ` : ''}${r.arrived}곳</span></span><span class="sc">${r.score.toLocaleString()}</span></li>`).join('')
+      : `<li class="empty">${rankScope === 'today' ? '오늘은' : '아직'} 기록이 없어요. 첫 기록을 남겨 보세요!</li>`;
+    if (playerName) {
+      const m = await api(`/me?name=${encodeURIComponent(playerName)}&scope=${rankScope}`);
+      $('rankMe').textContent = m.rank ? `${playerName} · ${m.rank}위 · ${m.score.toLocaleString()}점` : '';
+    } else $('rankMe').textContent = '';
+  } catch { list.innerHTML = '<li class="empty">랭킹 서버에 닿지 않아요</li>'; $('rankMe').textContent = ''; }
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+  rankScope = b.dataset.scope;
+  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
+  loadRank();
+}));
+const nameIn = $('name');
+nameIn.value = playerName;
+function validateName() {
+  const v = nameIn.value, r = checkName(v), msg = $('nameMsg');
+  msg.textContent = !v.trim() ? '랭킹에 보일 이름이에요' : r.ok ? '좋아요!' : r.why;
+  msg.classList.toggle('bad', !!v.trim() && !r.ok);
+  $('go').disabled = !ready || !r.ok;
+  $('go').textContent = ready ? '굴리기' : '불러오는 중…';
+  return r;
+}
+nameIn.addEventListener('input', validateName);
+nameIn.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter' && !$('go').disabled) $('go').click(); });
+nameIn.addEventListener('keyup', (e) => e.stopPropagation());
+function showStart() {
+  $('start').hidden = false; $('end').hidden = true; $('hud').hidden = true;
+  const best = bestRecord();
+  $('best').textContent = best ? `내 최고 ${best.s.toLocaleString()}점 · ${best.a}곳${best.last ? ` (${best.last}까지)` : ''}` : '';
+  drawMap(); loadRank(); validateName();
+}
+$('go').onclick = () => {
+  const r = validateName();
+  if (!r.ok || !ready) return;
+  playerName = r.name;
+  try { localStorage.setItem('degul-name', playerName); } catch {}
+  initAudio(); startGame(); toast('화면을 좌우로 끌어서 방향을 틀어요', 2200);
+};
+$('again').onclick = async () => { initAudio(); $('end').hidden = true; newOrder(); await prepare(); startGame(); };
+$('home').onclick = () => { newOrder(); showStart(); reload(); };
+$('shuffle').onclick = () => { newOrder(); drawMap(); reload(); };
+// bring in the first campuses of the current order; the start button waits for them
+async function reload() {
+  ready = false; validateName();
+  const gen = GEN;
+  await prepare();
+  if (gen === GEN) { ready = true; validateName(); }
+}
 $('share').onclick = () => shareCard();
 
 // ============ main loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (!$('start').hidden) { last = now; return; }
   const raw = Math.min(0.1, (now - last) / 1000);
   last = now;
   const dt = Math.min(1 / 30, raw);
@@ -1498,13 +1677,11 @@ function frame(now) {
   }
 }
 
-const best = bestRecord();
-if (best) $('best').textContent = `최고 기록 ${best.s.toLocaleString()}점 · ${best.a}곳${best.last ? ` (${best.last}까지)` : ''}`;
 $('loading').hidden = true;
-$('start').hidden = false;
+newOrder();
+showStart();
 requestAnimationFrame(frame);
-await prepare();
-$('go').disabled = false; $('go').textContent = '굴리기';
+await reload();
 if (BOT.on) startGame();
 
 // ============ test handle

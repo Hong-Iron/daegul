@@ -48,7 +48,7 @@ for s in sorted(schools, key=lambda s: -s['lat']):
         'trees': [[r1(x - cx), r1(z - cz), round(v, 2)] for x, z, v in d.get('trees', []) if inside(x, z)][:700],
     }
     json.dump(data, open(os.path.join(out, s['code'] + '.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
-    index.append({'code': s['code'], 'label': label(s), 'campus': s['campus'], 'lat': s['lat'],
+    index.append({'code': s['code'], 'label': label(s), 'campus': s['campus'], 'lat': s['lat'], 'lon': s['lon'],
                   'w': round(x1 - x0), 'd': round(z1 - z0), 'nb': len(blds)})
 json.dump(index, open(os.path.join(out, 'index.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 print(len(index), 'campuses')

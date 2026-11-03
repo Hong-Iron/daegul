@@ -1,0 +1,12 @@
+# 데굴 랭킹 Worker. database_id는 `npx wrangler d1 create degul` 뒤에 나오는 값으로 채운다
+name = "degul-rank"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "degul"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[triggers]
+crons = ["10 19 * * *"]   # 매일 04:10 KST: 지난 IP 기록 지우기
