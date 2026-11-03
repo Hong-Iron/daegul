@@ -95,8 +95,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 .card { display: block; width: 100%; text-align: left; background: #2c2832; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px;
   color: var(--ink); font-family: inherit; cursor: pointer; }
 .card b { font-size: 17px; }
-.card .lv { float: right; color: var(--acc); font-size: 13px; letter-spacing: 2px; }
+.card .lv { float: right; color: var(--acc); font-size: 13px; font-weight: 700; }
 .card div { margin-top: 4px; font-size: 13px; color: var(--mute); line-height: 1.45; }
+.card .up { font-size: 15px; font-weight: 700; color: var(--ink); }
+.card .up em { font-style: normal; color: var(--acc); }
 .card:active { border-color: var(--acc); }
 #end h2 { margin: 0; font-size: 26px; text-align: center; color: var(--acc); }
 #end .why { text-align: center; color: var(--mute); font-size: 13px; margin: 6px 0 16px; }
@@ -199,11 +201,12 @@ const SLOPE = 0.1, GAP = 60, SIDE = 40;
 // this run's course: every campus once, in a fresh random order, one after another down the slope
 const COURSE = [];
 let GEN = 0;                        // bumps on every new order, so files still on their way for the old one are ignored
-function newOrder() {
+function newOrder(first = null) {
   for (const c of [...LOADED]) unloadSeg(c);
   GEN++;
   const a = [...ALL];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  if (first) { const k = a.findIndex((c) => c.code === first); if (k > 0) a.unshift(a.splice(k, 1)[0]); }   // tests can pick the first campus
   COURSE.length = 0; COURSE.push(...a);
   let z = 0;
   COURSE.forEach((c, i) => {
@@ -530,7 +533,8 @@ function makeBuilding(c, src, idx) {
 
 // ============ ground for one campus
 function makeGround(c, d) {
-  const z0 = c.zs - GAP / 2, z1 = c.ze + GAP / 2, hw = c.halfW + 160, Wd = 2 * hw, Hd = z1 - z0;
+  // the first campus also gets ground behind the start line, so the camera never looks past the edge
+  const z0 = c.zs - GAP / 2 - (c.i === 0 ? 600 : 0), z1 = c.ze + GAP / 2, hw = c.halfW + 160, Wd = 2 * hw, Hd = z1 - z0;
   const PX = Math.min(2.5, 1600 / Math.max(Wd, Hd));
   const cv = document.createElement('canvas');
   cv.width = Math.ceil(Wd * PX); cv.height = Math.ceil(Hd * PX);
@@ -666,9 +670,14 @@ function placeProps(c, d) {
     for (let z = za; z < zb; z += 1.4) addObj(c, pick(TINY), srange(-14, 14), z, srand() * 6.28);
     for (let z = za; z < zb; z += 14) if (srand() < 0.6) addObj(c, 'car', srange(-9, 9), z, srand() < 0.5 ? Math.PI / 2 : -Math.PI / 2, 1, pick(CAR_COLORS));
   }
-  if (c.i === 0) for (let n = 0; n < 260; n++) {
-    const a = srand() * 6.28, dd = 1.5 + 26 * Math.sqrt(srand());
-    addObj(c, pick(['can', 'ball', 'cone', 'cone']), Math.cos(a) * dd, START_Z + 18 + Math.sin(a) * dd, srand() * 6.28);
+  if (c.i === 0) {
+    // a handful of things right in front of the start, sized for the ball it starts with
+    const d0 = 2 * S.r, kinds = Object.keys(KINDS).filter((k) => k !== 'chunk' && KINDS[k].s <= d0 * 0.45);
+    const spread = Math.max(1, d0 / 2);
+    for (let n = 0; n < 260; n++) {
+      const a = srand() * 6.28, dd = (1.5 + 26 * Math.sqrt(srand())) * spread;
+      addObj(c, pick(kinds), Math.cos(a) * dd, START_Z + 18 * spread + Math.sin(a) * dd, srand() * 6.28);
+    }
   }
 }
 
@@ -776,14 +785,25 @@ const GRADES = [
   { d: 0, n: '캔급' }, { d: 3.6, n: '벤치급' }, { d: 9, n: '자동차급' }, { d: 22, n: '버스급' }, { d: 45, n: '건물급' }, { d: 100, n: '캠퍼스급' },
 ];
 const CARD_AT = [2.2, 3.6, 6, 9, 14, 22, 32, 45, 65, 90];
+// each pick raises one number a little, with no level cap (two of them stop where more would break the game)
+const STAT = {
+  magnet: (l) => 0.12 * l,                                   // extra pull reach, × ball radius
+  sticky: (l) => 0.5 + 0.02 * Math.min(l, 20),               // biggest thing that sticks, × diameter
+  dash: (l) => 1 + 0.06 * l,                                 // top speed and push
+  ram: (l) => 1 + 0.15 * l,                                  // power when smashing buildings
+  twin: (l) => (l ? Math.min(0.6, 0.22 + 0.03 * (l - 1)) : 0),  // helper ball radius, × ball radius
+  slope: (l) => 1 + 0.1 * l,                                 // pull down the slope
+};
+const pct = (v) => `${Math.round(v * 100)}%`;
 const CARDS = [
-  { id: 'magnet', name: '자석', desc: (l) => `근처 물건이 공 쪽으로 끌려와요. 끌어오는 거리 +${35 * l}%` },
-  { id: 'sticky', name: '끈끈이', desc: (l) => `공 지름의 ${50 + 5 * l}%까지 붙어요` },
-  { id: 'dash', name: '질주', desc: (l) => `최고 속도와 가속 +${15 * l}%` },
-  { id: 'ram', name: '돌진', desc: (l) => `건물을 들이받을 때 부서지는 힘 +${30 * l}%` },
-  { id: 'twin', name: '쌍둥이 공', desc: (l) => `작은 공이 곁을 돌며 물건을 주워 줘요 (크기 ${l}단계)` },
-  { id: 'slope', name: '비탈길', desc: (l) => `내리막에서 +${25 * l}% 더 빨리 굴러요` },
+  { id: 'magnet', name: '자석', what: '근처 물건을 끌어오는 거리', show: (l) => `+${pct(STAT.magnet(l))}` },
+  { id: 'sticky', name: '끈끈이', what: '붙는 물건 크기(공 지름의)', show: (l) => pct(STAT.sticky(l)), max: 20 },
+  { id: 'dash', name: '질주', what: '최고 속도와 가속', show: (l) => `+${pct(STAT.dash(l) - 1)}` },
+  { id: 'ram', name: '돌진', what: '건물을 부수는 힘', show: (l) => `+${pct(STAT.ram(l) - 1)}` },
+  { id: 'twin', name: '쌍둥이 공', what: '곁을 돌며 주워 주는 작은 공(공 크기의)', show: (l) => (l ? pct(STAT.twin(l)) : '없음'), max: 14 },
+  { id: 'slope', name: '비탈길', what: '내리막에서 붙는 속도', show: (l) => `+${pct(STAT.slope(l) - 1)}` },
 ];
+const canRaise = (c) => !c.max || S.lv[c.id] < c.max;
 // stuck things leave gaps, so the ball gains more volume than the things themselves; less so as it grows,
 // so big buildings stay something to dodge
 const grow = () => 6 / (1 + S.r / 6);
@@ -792,7 +812,7 @@ const DOWN = 11;               // pull down the slope (m/s²)
 const STALL_D = 4, STALL_T = 1.6;
 const volOf = (r) => (4 / 3) * Math.PI * r ** 3;
 const radOf = (v) => Math.cbrt((3 * v) / (4 * Math.PI));
-const ratio = () => 0.5 + 0.05 * S.lv.sticky;
+const ratio = () => STAT.sticky(S.lv.sticky);
 
 const S = {};
 const tweens = [];
@@ -1171,16 +1191,16 @@ function contactCols(b, R) {
 
 // ============ cards
 function openCards() {
-  const opts = CARDS.filter((c) => S.lv[c.id] < 3).sort(() => Math.random() - 0.5).slice(0, 3);
+  const opts = CARDS.filter(canRaise).sort(() => Math.random() - 0.5).slice(0, 3);
   if (!opts.length) { S.pendingCards = 0; return; }
   S.mode = 'card';
   input.active = false; joy.hidden = true;
   const list = $('cardlist');
   list.innerHTML = '';
   opts.forEach((c) => {
-    const l = S.lv[c.id] + 1, b = document.createElement('button');
+    const l = S.lv[c.id], b = document.createElement('button');
     b.className = 'card';
-    b.innerHTML = `<b>${c.name}</b><span class="lv">${'●'.repeat(l)}${'○'.repeat(3 - l)}</span><div>${c.desc(l)}</div>`;
+    b.innerHTML = `<b>${c.name}</b><span class="lv">Lv.${l} → ${l + 1}</span><div>${c.what}</div><div class="up">${c.show(l)} → <em>${c.show(l + 1)}</em></div>`;
     b.onclick = () => chooseCard(c.id);
     list.appendChild(b);
   });
@@ -1224,7 +1244,7 @@ function arrive(c) {
   S.arrived++; S.last = c.label;
   banner(`${c.label} 도착!<small>+100</small>`);
   sfxArrive(); vib([20, 30, 20]);
-  if (S.arrived % 3 === 0) S.pendingCards++;
+  if (S.arrived % 2 === 0) S.pendingCards++;
 }
 function step(dt) {
   S.t += dt;
@@ -1241,7 +1261,7 @@ function step(dt) {
     const L = Math.hypot(ix, iy);
     if (L > 6) { mag = Math.min(1, L / 60); ax = (fx * -iy + rx * ix) / L; az = (fz * -iy + rz * ix) / L; }
   }
-  const dash = 1 + 0.15 * lv.dash;
+  const dash = STAT.dash(lv.dash);
   S.boost = Math.max(0, S.boost - dt); S.boostCd = Math.max(0, S.boostCd - dt);
   let vmax = (15 + 3.4 * Math.pow(r, 0.75)) * dash;
   const acc = (20 + 4 * Math.pow(r, 0.8)) * dash;
@@ -1262,7 +1282,7 @@ function step(dt) {
     const along = S.vx * ax + S.vz * az, px = S.vx - ax * along, pz = S.vz - az * along, k = Math.exp(-3.5 * mag * dt);
     S.vx = ax * along + px * k; S.vz = az * along + pz * k;
   }
-  S.vz += DOWN * (1 + 0.25 * lv.slope) * dt;
+  S.vz += DOWN * STAT.slope(lv.slope) * dt;
   const fr = Math.exp(-(mag > 0 ? 0.2 : 0.35) * dt);
   S.vx *= fr; S.vz *= fr;
   let sp = Math.hypot(S.vx, S.vz);
@@ -1294,9 +1314,9 @@ function step(dt) {
       }
     } else if (b.hitCd <= 0 && (hit > 5 || (S.boost > 0 && hit > 2))) {
       b.hitCd = 0.3;
-      const power = hit * (S.boost > 0 ? 1.5 : 1) * (1 + 0.3 * lv.ram);
+      const power = hit * (S.boost > 0 ? 1.5 : 1) * STAT.ram(lv.ram);
       const broke = hitBuilding(b, qx, qz, power, false);
-      const n = Math.round((2 + 2 * lv.ram) * Math.min(2.5, hit / 6));
+      const n = Math.round(2 * STAT.ram(lv.ram) * Math.min(2.5, hit / 6));
       for (let i = 0; i < n; i++) {
         const sc = clamp(r * rand(0.25, 0.45), 0.35, 8), tx = -nz, tz = nx, sd = rand(-1, 1) * r;
         launch('chunk', qx + tx * sd - nx * 0.5, groundY(qx, qz) + rand(0.5, Math.min(b.h, r * 2.5)), qz + tz * sd - nz * 0.5,
@@ -1313,7 +1333,7 @@ function step(dt) {
     }
   }
   // small things: pick up, bowl over, or bounce
-  const reach = r * 1.15 + 0.7 + r * 0.35 * lv.magnet;
+  const reach = r * 1.15 + 0.7 + r * STAT.magnet(lv.magnet);
   gridEach(S.x, S.z, reach + 6, (o) => {
     const dx = o.x - S.x, dz = o.z - S.z, d = Math.hypot(dx, dz);
     if (o.s <= lim) { if (d < reach + o.s * 0.35) pickObj(o); return; }
@@ -1329,7 +1349,7 @@ function step(dt) {
   });
   if (lv.twin) {
     S.twinA += dt * 1.6;
-    const rc = r * (0.22 + 0.08 * lv.twin), dist = r * 1.9 + 1.5;
+    const rc = r * STAT.twin(lv.twin), dist = r * 1.9 + 1.5;
     const tx = S.x + Math.cos(S.twinA) * dist, tz = S.z + Math.sin(S.twinA) * dist;
     twinMesh.visible = true;
     twinMesh.position.set(tx, groundY(tx, tz) + rc, tz);
@@ -1364,7 +1384,7 @@ function step(dt) {
     S.win = S.stall < STALL_T;
     S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true;
   } else if (S.pendingCards > 0 && S.mode === 'play') {
-    if (BOT.on) { while (S.pendingCards > 0) { const c = CARDS.find((x) => S.lv[x.id] < 3); if (!c) { S.pendingCards = 0; break; } S.lv[c.id]++; S.pendingCards--; } }
+    if (BOT.on) { while (S.pendingCards > 0) { const ok = CARDS.filter(canRaise); S.lv[ok[Math.floor(Math.random() * ok.length)].id]++; S.pendingCards--; } }
     else openCards();
   }
 }
@@ -1469,6 +1489,14 @@ function clearBall() {
   ballSpin.quaternion.identity();
   twinMesh.visible = false;
 }
+// a wide first campus would take ages with a fist-sized ball, so the ball starts bigger there:
+// 1 m up to ~650 m across, then (size / 650)^1.6 — 2 m at 1 km, 6 m at 2 km
+function startSize() {
+  const c = COURSE[0], d0 = Math.max(1, (Math.max(c.w, c.d) / 650) ** 1.6);
+  S.r = d0 / 2; S.V = volOf(S.r); S.maxD = d0;
+  while (S.grade + 1 < GRADES.length && d0 >= GRADES[S.grade + 1].d) S.grade++;
+  while (S.cardIx < CARD_AT.length && d0 >= CARD_AT[S.cardIx]) S.cardIx++;   // no free cards for the head start
+}
 async function prepare() {
   // drop whatever is loaded and bring in the first campuses again
   for (const c of [...LOADED]) unloadSeg(c);
@@ -1477,6 +1505,7 @@ async function prepare() {
   GRID.clear();
   clearBall();
   resetGame();
+  startSize();
   await Promise.all(COURSE.slice(0, 3).map(loadSeg));
   placeBall(0); placeCamera(1);
 }
@@ -1485,6 +1514,7 @@ function startGame() {
   S.camDist = 7 + S.r * 5.5;
   $('end').hidden = true; $('hud').hidden = false;
   last = performance.now();
+  if (S.r * 2 > 1.5) toast(`넓은 ${COURSE[0].label}에서 출발해서 공을 ${fmtD(S.r * 2)} m로 키웠어요`, 2600);
   hudCache = '';
 }
 // ============ ranking (on the result screen)
@@ -1611,12 +1641,12 @@ requestAnimationFrame(frame);
 await prepare();
 $('loading').hidden = true;
 startGame();
-toast('화면을 좌우로 끌어서 방향을 틀어요', 2600);
+if (S.r * 2 <= 1.5) toast('화면을 좌우로 끌어서 방향을 틀어요', 2600);
 
 // ============ test handle
 window.__degul = {
   S, COURSE, LOADED, KINDS, CARDS, STUCKP, ballRoot, ballSpin,
-  start: async () => { await prepare(); startGame(); },
+  start: async (first) => { if (first) newOrder(first); await prepare(); startGame(); },
   bot: (on = true) => { BOT.on = on; },
   // run the game logic for `sec` seconds without drawing; campuses still stream in (await between chunks)
   async sim(sec = 60, dt = 1 / 30, every = 10) {
