@@ -26,6 +26,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #grade { margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--acc); text-shadow: 0 1px 0 rgba(0,0,0,.5); }
 #next { margin-top: 2px; font-size: 12px; color: var(--ink); opacity: .85; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
 #side { text-align: right; font-size: 14px; font-weight: 700; text-shadow: 0 1px 0 rgba(0,0,0,.6); line-height: 1.5; }
+#dash { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 4px; background: var(--acc); color: #1b1408; font-size: 12px; text-shadow: none; }
+#dash.cool { background: rgba(22,20,26,.55); color: var(--mute); }
 #ebox { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
 #ebox span { font-size: 12px; font-weight: 700; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
 #ebar { flex: 1; height: 8px; background: rgba(22,20,26,.55); border-radius: 4px; overflow: hidden; }
@@ -86,7 +88,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
       <div id="grade">캔급</div>
       <div id="next"></div>
     </div>
-    <div id="side"><div id="time">0:00</div><div id="count">0개</div></div>
+    <div id="side"><div id="time">0:00</div><div id="count">0개</div><div id="dash">돌진</div></div>
   </div>
   <div id="ebox"><span>기운</span><div id="ebar"><i></i></div></div>
 </div>
@@ -102,6 +104,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
       <li>화면을 끌면 그쪽으로 공이 굴러가요.</li>
       <li>공 지름의 절반보다 작은 건 달라붙고, 큰 건 튕겨요.</li>
       <li>건물을 세게 들이받으면 조각이 떨어져요.</li>
+      <li>화면을 두 번 톡 치면 앞으로 돌진해요.</li>
       <li>기운이 다 빠지기 전에 계속 붙이세요.</li>
     </ul>
     <button class="btn" id="go">굴리기</button>
@@ -257,7 +260,7 @@ const BLD = D.buildings.map((b, i) => {
   return {
     i, name: b.n || '건물', poly: b.o, x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2,
     base: b.lo - 2, top: b.g + b.h, h: b.h, area,
-    s: 0.4 * (Math.sqrt(area) + b.h), vol: area * b.h * 0.2,
+    s: 0.33 * (Math.sqrt(area) + b.h), vol: area * b.h * 0.2,
     wall: WALLS[i % WALLS.length], roof: b.rc || '#cfcabd', alive: true, hitCd: 0, mesh: null,
   };
 });
@@ -624,7 +627,7 @@ const CARDS = [
   { id: 'slope', name: '비탈길', desc: (l) => `내리막에서 +${35 * l}% 빨라지고, 오르막에서 ${25 * l}% 덜 느려져요` },
 ];
 // stuck things leave gaps, so the ball gains more volume than the things themselves; less so once it is huge
-const grow = () => 4 / (1 + S.r / 20);
+const grow = () => 6 / (1 + S.r / 30);
 const DRAIN = 0.056;           // energy lost per second
 const volOf = (r) => (4 / 3) * Math.PI * r ** 3;
 const radOf = (v) => Math.cbrt((3 * v) / (4 * Math.PI));
@@ -637,17 +640,19 @@ function resetGame() {
   Object.assign(S, {
     mode: 'start', t: 0, r: 0.5, V: volOf(0.5), maxD: 1, x: START[0], z: START[1], vx: 0, vz: 0, E: 1,
     picks: 0, biggest: null, grade: 0, cardIx: 0, lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
-    camYaw: 0, camDist: 7, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, pendingCards: 0,
+    camYaw: 0, camDist: 7, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, pendingCards: 0, boost: 0, boostCd: 0, boostReq: false,
   });
   // face the camera toward the campus middle at the start
   S.camYaw = Math.atan2(CB.cx - S.x, CB.cz - S.z);
 }
 
 // ============ input
-const input = { x: 0, y: 0, active: false, ox: 0, oy: 0, id: null, world: null };
+const input = { x: 0, y: 0, active: false, ox: 0, oy: 0, id: null, upT: -1e9, ux: 0, uy: 0 };
 const joy = $('joy'), knob = joy.firstElementChild;
 stage.addEventListener('pointerdown', (e) => {
   if (S.mode !== 'play' || input.active) return;
+  // a second tap right after the first one, near the same spot, is a dash
+  if (performance.now() - input.upT < 300 && Math.hypot(e.clientX - input.ux, e.clientY - input.uy) < 60) S.boostReq = true;
   input.active = true; input.id = e.pointerId; input.ox = e.clientX; input.oy = e.clientY; input.x = input.y = 0;
   joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; knob.style.transform = '';
   joy.hidden = false;
@@ -658,11 +663,15 @@ addEventListener('pointermove', (e) => {
   input.x = dx; input.y = dy;
   knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
 });
-const endPointer = (e) => { if (e.pointerId === input.id) { input.active = false; input.x = input.y = 0; joy.hidden = true; } };
+const endPointer = (e) => {
+  if (e.pointerId !== input.id) return;
+  input.active = false; input.x = input.y = 0; joy.hidden = true;
+  input.upT = performance.now(); input.ux = e.clientX; input.uy = e.clientY;
+};
 addEventListener('pointerup', endPointer);
 addEventListener('pointercancel', endPointer);
 const keys = new Set();
-addEventListener('keydown', (e) => keys.add(e.key.toLowerCase()));
+addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); if (e.key === ' ' && S.mode === 'play') { S.boostReq = true; e.preventDefault(); } });
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
 // ============ sound
@@ -727,6 +736,16 @@ function sfxLevel() {
   });
   noiseBurst(t, 0.6, 2400, 0.12);
 }
+function sfxBoost() {
+  if (!AC) return;
+  const t = AC.currentTime, n = AC.createBufferSource(), buf = AC.createBuffer(1, Math.ceil(AC.sampleRate * 0.5), AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  n.buffer = buf;
+  const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
+  f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(2200, t + 0.35);
+  const g = AC.createGain(); env(g, t, 0.35, 0.45);
+  n.connect(f).connect(g).connect(master); n.start(t);
+}
 function sfxClick() {
   if (!AC) return;
   const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
@@ -768,6 +787,7 @@ function updateHud() {
     $('time').textContent = fmtT(S.t);
     $('count').textContent = `${S.picks.toLocaleString()}개`;
   }
+  $('dash').classList.toggle('cool', S.boostCd > 0);
   const bar = $('ebar');
   bar.firstElementChild.style.transform = `scaleX(${clamp(S.E, 0, 1)})`;
   bar.classList.toggle('low', S.E < 0.25);
@@ -794,6 +814,7 @@ function gain(dv) {
   return f;
 }
 function pickObj(o) {
+  if (!o.alive) return;
   o.alive = false;
   hideObj(o);
   const dv = o.vol * grow();
@@ -865,6 +886,13 @@ function updateFlying(dt) {
     showObj(o);
   }
 }
+function knockObj(o, ux, uz, speed) {
+  o.alive = false;
+  o.vx = ux * speed * rand(1.1, 1.6) + rand(-2, 2); o.vz = uz * speed * rand(1.1, 1.6) + rand(-2, 2);
+  o.vy = 4 + speed * rand(0.3, 0.6); o.spin = rand(-8, 8); o.y += 0.05;
+  flying.push(o);
+  sfxThud(speed * 0.4); S.shake = Math.max(S.shake, 0.2); vib(10);
+}
 function dropStuck(n) {
   // a hard hit knocks a few of the latest small things back off the ball
   let dropped = 0;
@@ -934,6 +962,7 @@ function botInput(dt) {
   if (BOT.wander > 0) { BOT.wander -= dt; return [BOT.wx, BOT.wz]; }
   const t = BOT.target || { x: CB.cx, z: CB.cz };
   const dx = t.x - S.x, dz = t.z - S.z, L = Math.hypot(dx, dz) || 1;
+  if (S.boostCd <= 0 && L > S.r * 4 + 6) S.boostReq = true;
   return [dx / L, dz / L];
 }
 function step(dt) {
@@ -953,15 +982,34 @@ function step(dt) {
     if (L > 6) { mag = Math.min(1, L / 60); ax = (fx * -iy + rx * ix) / L; az = (fz * -iy + rz * ix) / L; }
   }
   const dash = 1 + 0.15 * lv.dash;
-  const vmax = (4.5 + 2.6 * Math.pow(r, 0.85)) * dash, acc = (7 + 2.4 * Math.pow(r, 0.85)) * dash;
+  // dash: a burst forward, then a short cooldown
+  S.boost = Math.max(0, S.boost - dt); S.boostCd = Math.max(0, S.boostCd - dt);
+  let vmax = (7 + 3.6 * Math.pow(r, 0.85)) * dash;
+  const acc = (18 + 5 * Math.pow(r, 0.85)) * dash;
+  if (S.boostReq) {
+    S.boostReq = false;
+    if (S.boostCd <= 0) {
+      let bx = ax, bz = az;
+      if (!mag) { const v = Math.hypot(S.vx, S.vz); [bx, bz] = v > 0.5 ? [S.vx / v, S.vz / v] : [fx, fz]; }
+      S.boost = 0.7; S.boostCd = 2;
+      S.vx = bx * vmax * 1.6; S.vz = bz * vmax * 1.6;
+      S.shake = Math.max(S.shake, 0.3); sfxBoost(); vib(20);
+    }
+  }
+  if (S.boost > 0) vmax *= 1.8;
   S.vx += ax * acc * mag * dt; S.vz += az * acc * mag * dt;
+  if (mag > 0) {
+    // grip: sideways sliding dies off fast, so the ball turns where the thumb points
+    const along = S.vx * ax + S.vz * az, px = S.vx - ax * along, pz = S.vz - az * along, k = Math.exp(-3.5 * mag * dt);
+    S.vx = ax * along + px * k; S.vz = az * along + pz * k;
+  }
   // slope
   const gx = (groundY(S.x + 1, S.z) - groundY(S.x - 1, S.z)) / 2, gz = (groundY(S.x, S.z + 1) - groundY(S.x, S.z - 1)) / 2;
   let sm = 1;
   if (lv.slope) sm = gx * S.vx + gz * S.vz > 0 ? 1 - 0.25 * lv.slope : 1 + 0.35 * lv.slope;
   S.vx -= gx * 9.8 * 0.55 * sm * dt; S.vz -= gz * 9.8 * 0.55 * sm * dt;
   // rolling resistance, and a soft speed cap
-  const fr = Math.exp(-(mag > 0 ? 0.35 : 0.9) * dt);
+  const fr = Math.exp(-(mag > 0 ? 0.25 : 0.7) * dt);
   S.vx *= fr; S.vz *= fr;
   let sp = Math.hypot(S.vx, S.vz);
   if (sp > vmax) { const k = vmax / sp + (1 - vmax / sp) * Math.exp(-4 * dt); S.vx *= k; S.vz *= k; sp *= k; }
@@ -990,9 +1038,9 @@ function step(dt) {
     if (vn < 0) {
       S.vx -= 1.35 * vn * nx; S.vz -= 1.35 * vn * nz;
       const hit = -vn;
-      if (hit > 4 && b.hitCd <= 0) {
-        b.hitCd = 0.35;
-        const n = Math.round((3 + 3 * lv.ram) * Math.min(2, hit / 6));
+      if (hit > 3 && b.hitCd <= 0) {
+        b.hitCd = 0.3;
+        const n = Math.round((4 + 3 * lv.ram) * Math.min(2.5, hit / 6) * (S.boost > 0 ? 1.6 : 1));
         for (let i = 0; i < n; i++) {
           const sc = clamp(r * rand(0.25, 0.45), 0.35, 8), tx = -nz, tz = nx, sd = rand(-1, 1) * r;
           launch('chunk', qx + tx * sd - nx * 0.5, groundY(qx, qz) + rand(0.5, Math.min(b.h, r * 2.5)), qz + tz * sd - nz * 0.5,
@@ -1000,7 +1048,7 @@ function step(dt) {
         }
         sfxThud(hit); vib(25);
         S.shake = Math.max(S.shake, Math.min(0.8, hit * 0.05));
-        if (hit > 7 && S.picks > 8) dropStuck(Math.min(4, Math.floor(hit / 4)));
+        if (hit > 14 && S.boost <= 0 && S.picks > 8) dropStuck(Math.min(3, Math.floor(hit / 7)));
       }
     }
   }
@@ -1015,8 +1063,10 @@ function step(dt) {
     const R = r * 0.92 + o.cr;
     if (d >= R || d < 1e-4) return;
     const nx = -dx / d, nz = -dz / d;
-    S.x = o.x + nx * R; S.z = o.z + nz * R;
     const vn = S.vx * nx + S.vz * nz;
+    // things smaller than the ball get bowled over when it comes in fast
+    if (vn < -2.5 && o.s <= 2 * r * 1.15) { knockObj(o, -nx, -nz, -vn); S.vx *= 0.93; S.vz *= 0.93; return; }
+    S.x = o.x + nx * R; S.z = o.z + nz * R;
     if (vn < 0) {
       S.vx -= 1.3 * vn * nx; S.vz -= 1.3 * vn * nz;
       if (-vn > 3) { sfxThud(-vn * 0.5); S.shake = Math.max(S.shake, 0.15); }
@@ -1072,9 +1122,11 @@ function placeCamera(dt, orbit = 0) {
   if (sp > 1.2 && S.mode === 'play') {
     let d = Math.atan2(S.vx, S.vz) - S.camYaw;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    S.camYaw += d * Math.min(1, dt * 1.6 * Math.min(1, sp / 6));
+    S.camYaw += d * Math.min(1, dt * 3.2 * Math.min(1, sp / 5));
   }
   S.camYaw += orbit * dt;
+  const fov = (innerWidth < innerHeight ? 60 : 50) + (S.boost > 0 ? 12 * (S.boost / 0.7) : 0);
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 10 || 1); camera.updateProjectionMatrix(); }
   const want = 5 + S.r * 6;
   S.camDist += (want - S.camDist) * Math.min(1, dt * 2.2);
   const dist = S.camDist, fx = Math.sin(S.camYaw), fz = Math.cos(S.camYaw), c = ballRoot.position;
@@ -1240,7 +1292,7 @@ window.__degul = {
     return log;
   },
   // draw the current state once (the in-app browser pauses rAF while its pane is hidden)
-  snap() { updateTweens(1); placeBall(0); placeCamera(0); updateHud(); renderer.render(scene, camera); return { d: +(2 * S.r).toFixed(2), mode: S.mode }; },
+  snap() { updateTweens(1); placeBall(0); placeCamera(1); updateHud(); renderer.render(scene, camera); return { d: +(2 * S.r).toFixed(2), mode: S.mode }; },
   counts: () => Object.fromEntries(Object.keys(KINDS).map((k) => [k, OBJ.filter((o) => o.k === k).length])),
   card: (i) => document.querySelectorAll('.card')[i]?.click(),
   end: () => { S.E = 0; },
