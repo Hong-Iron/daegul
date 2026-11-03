@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>데굴 — 중앙대를 굴려서 뭉쳐 봐</title>
-<meta name="description" content="주먹만 한 공을 중앙대학교 서울캠퍼스에서 굴려, 벤치부터 본관까지 붙이며 키우는 3D 웹게임">
+<title>데굴 — 전국 대학을 굴러 내려가 봐</title>
+<meta name="description" content="강원도 경동대에서 제주대까지, 전국 대학 캠퍼스를 북쪽부터 남쪽으로 이어 붙인 내리막을 공으로 굴러 내려가며 물건과 건물을 붙이는 3D 웹게임">
 <meta name="theme-color" content="#16141a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
 <style>
-:root { --bg: #16141a; --panel: #232028; --line: #3a3640; --ink: #f4efe6; --mute: #a59f95; --acc: #ffa620; }
+:root { --bg: #16141a; --panel: #232028; --line: #3a3640; --ink: #f4efe6; --mute: #a59f95; --acc: #ffa620; --bad: #e5484d; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden; overscroll-behavior: none;
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
@@ -18,45 +18,52 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #stage canvas { display: block; }
 .big { font-family: "Black Han Sans", sans-serif; font-weight: 400; letter-spacing: 0.01em; }
 [hidden] { display: none !important; }
+.sh { text-shadow: 0 1px 0 rgba(0,0,0,.6); }
 
 #hud { position: fixed; left: 0; right: 0; top: 0; padding: calc(env(safe-area-inset-top) + 12px) 16px 0; pointer-events: none; }
 #hud .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-#dia { font-size: 40px; line-height: 1; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
-#dia small { font-size: 20px; margin-left: 2px; }
-#grade { margin-top: 6px; font-size: 15px; font-weight: 700; color: var(--acc); text-shadow: 0 1px 0 rgba(0,0,0,.5); }
-#next { margin-top: 2px; font-size: 12px; color: var(--ink); opacity: .85; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
-#side { text-align: right; font-size: 14px; font-weight: 700; text-shadow: 0 1px 0 rgba(0,0,0,.6); line-height: 1.5; }
+#scorebox { display: inline-block; transform-origin: left top; }
+#scorebox.pulse { animation: pulse .45s ease-out; }
+@keyframes pulse { 0% { transform: scale(1); } 35% { transform: scale(1.5); color: var(--acc); } 100% { transform: scale(1); } }
+#score { font-size: 44px; line-height: 1; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+#scorebox span { display: block; font-size: 12px; font-weight: 700; color: var(--ink); opacity: .85; margin-bottom: 2px; }
+#dia { margin-top: 6px; font-size: 14px; font-weight: 700; }
+#dia b { color: var(--acc); }
+#side { text-align: right; font-size: 14px; font-weight: 700; line-height: 1.5; }
 #dash { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 4px; background: var(--acc); color: #1b1408; font-size: 12px; text-shadow: none; }
 #dash.cool { background: rgba(22,20,26,.55); color: var(--mute); }
-#ebox { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
-#ebox span { font-size: 12px; font-weight: 700; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
-#ebar { flex: 1; height: 8px; background: rgba(22,20,26,.55); border-radius: 4px; overflow: hidden; }
-#ebar i { display: block; height: 100%; width: 100%; background: var(--acc); border-radius: 4px; transform-origin: left; }
-#ebar.low i { background: #e5484d; }
+#next { margin-top: 10px; font-size: 13px; font-weight: 700; }
+#sbox { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+#sbox span { font-size: 12px; font-weight: 700; }
+#sbar { flex: 1; height: 8px; background: rgba(22,20,26,.55); border-radius: 4px; overflow: hidden; }
+#sbar i { display: block; height: 100%; width: 100%; background: var(--acc); border-radius: 4px; transform-origin: left; }
+#sbar.low i { background: var(--bad); }
+#warn { position: fixed; left: 0; right: 0; top: 56%; text-align: center; pointer-events: none; font-size: 30px; color: var(--bad);
+  text-shadow: 0 3px 0 rgba(0,0,0,.4); opacity: 0; transition: opacity .15s; }
+#warn.on { opacity: 1; }
 
-#toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 150px); transform: translateX(-50%); pointer-events: none;
+#toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 160px); transform: translateX(-50%); pointer-events: none;
   background: rgba(22,20,26,.82); padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: 700; white-space: nowrap;
   opacity: 0; transition: opacity .2s; }
 #toast.on { opacity: 1; }
-#gradeup { position: fixed; left: 0; right: 0; top: 38%; text-align: center; pointer-events: none; font-size: 54px; color: var(--acc);
-  text-shadow: 0 4px 0 rgba(0,0,0,.4); opacity: 0; transform: scale(.8); transition: opacity .25s, transform .25s; }
-#gradeup.on { opacity: 1; transform: scale(1); }
-#gradeup small { display: block; font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 700; color: var(--ink); margin-top: 6px; }
+#banner { position: fixed; left: 0; right: 0; top: 34%; text-align: center; pointer-events: none; font-size: 46px; color: var(--ink);
+  text-shadow: 0 4px 0 rgba(0,0,0,.45); opacity: 0; transform: scale(.8); transition: opacity .25s, transform .25s; padding: 0 16px; }
+#banner.on { opacity: 1; transform: scale(1); }
+#banner small { display: block; font-size: 22px; color: var(--acc); margin-top: 6px; }
 
-#joy { position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(244,239,230,.45);
-  pointer-events: none; }
+#joy { position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(244,239,230,.45); pointer-events: none; }
 #joy i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(244,239,230,.55); }
 
 .layer { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(16,14,20,.72); z-index: 10; }
 .panel { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px 18px; box-sizing: border-box; }
 .btn { display: block; width: 100%; border: 0; border-radius: 8px; padding: 15px 0; font-size: 17px; font-weight: 800; cursor: pointer;
   background: var(--acc); color: #1b1408; font-family: inherit; }
+.btn:disabled { opacity: .5; }
 .btn.sub { background: transparent; color: var(--ink); border: 1px solid var(--line); margin-top: 10px; font-weight: 700; }
 #start h1 { margin: 0; font-size: 64px; line-height: 1; color: var(--acc); text-align: center; }
 #start .tag { text-align: center; margin: 10px 0 18px; font-size: 16px; font-weight: 700; }
 #start ul { margin: 0 0 20px; padding: 0 0 0 18px; color: var(--mute); font-size: 14px; line-height: 1.65; }
 #start .best { text-align: center; color: var(--mute); font-size: 13px; margin-top: 12px; }
-
 #cards h2 { margin: 0 0 4px; font-size: 22px; text-align: center; }
 #cards p.h { margin: 0 0 14px; text-align: center; color: var(--mute); font-size: 13px; }
 .card { display: block; width: 100%; text-align: left; background: #2c2832; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px;
@@ -65,7 +72,6 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 .card .lv { float: right; color: var(--acc); font-size: 13px; letter-spacing: 2px; }
 .card div { margin-top: 4px; font-size: 13px; color: var(--mute); line-height: 1.45; }
 .card:active { border-color: var(--acc); }
-
 #end h2 { margin: 0; font-size: 26px; text-align: center; color: var(--acc); }
 #end .why { text-align: center; color: var(--mute); font-size: 13px; margin: 6px 0 16px; }
 #end dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 16px; }
@@ -79,35 +85,35 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 </head>
 <body>
 <div id="stage"></div>
-<div id="loading">중앙대를 불러오는 중…</div>
+<div id="loading">코스를 불러오는 중…</div>
 
 <div id="hud" hidden>
   <div class="row">
     <div>
-      <div id="dia" class="big">1.00<small>m</small></div>
-      <div id="grade">캔급</div>
-      <div id="next"></div>
+      <div id="scorebox" class="sh"><span>점수</span><div id="score" class="big">0</div></div>
+      <div id="dia" class="sh">지름 1.00 m · <b>캔급</b></div>
     </div>
-    <div id="side"><div id="time">0:00</div><div id="count">0개</div><div id="dash">돌진</div></div>
+    <div id="side" class="sh"><div id="time">0:00</div><div id="arr">도착 0곳</div><div id="dash">돌진</div></div>
   </div>
-  <div id="ebox"><span>기운</span><div id="ebar"><i></i></div></div>
+  <div id="next" class="sh"></div>
+  <div id="sbox" class="sh"><span>속도</span><div id="sbar"><i></i></div></div>
 </div>
 <div id="toast"></div>
-<div id="gradeup" class="big"></div>
+<div id="banner" class="big"></div>
+<div id="warn" class="big">멈추면 끝!</div>
 <div id="joy" hidden><i></i></div>
 
 <div id="start" class="layer" hidden>
   <div class="panel">
     <h1 class="big">데굴</h1>
-    <div class="tag">중앙대를 굴려서 뭉쳐 봐</div>
+    <div class="tag">전국 대학을 굴러 내려가 봐</div>
     <ul>
-      <li>화면을 끌면 그쪽으로 공이 굴러가요.</li>
-      <li>공 지름의 절반보다 작은 건 달라붙고, 큰 건 튕겨요.</li>
-      <li>건물을 세게 들이받으면 조각이 떨어져요.</li>
-      <li>화면을 두 번 톡 치면 앞으로 돌진해요.</li>
-      <li>기운이 다 빠지기 전에 계속 붙이세요.</li>
+      <li>북쪽 끝 경동대에서 출발해 제주대까지, 대학 337곳이 내리막으로 이어져 있어요.</li>
+      <li>화면을 좌우로 끌면 방향을 틀어요. 두 번 톡 치면 돌진해요.</li>
+      <li>공 지름의 절반보다 작은 건 붙고, 큰 건물은 피하거나 부수세요.</li>
+      <li>대학에 들어설 때마다 +100점. 멈추면 끝이에요.</li>
     </ul>
-    <button class="btn" id="go">굴리기</button>
+    <button class="btn" id="go" disabled>불러오는 중…</button>
     <div class="best" id="best"></div>
   </div>
 </div>
@@ -122,14 +128,14 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 
 <div id="end" class="layer" hidden>
   <div class="panel">
-    <h2 class="big" id="endTitle">기운이 다 빠졌어요</h2>
+    <h2 class="big" id="endTitle">멈춰 버렸어요</h2>
     <div class="why" id="endWhy"></div>
     <dl>
+      <div><dt>점수</dt><dd class="big" id="eScore"></dd></div>
+      <div><dt>도착</dt><dd class="big" id="eArr"></dd></div>
       <div><dt>지름</dt><dd class="big" id="eDia"></dd></div>
       <div><dt>시간</dt><dd class="big" id="eTime"></dd></div>
-      <div><dt>붙인 물건</dt><dd class="big" id="eCount"></dd></div>
-      <div><dt>등급</dt><dd class="big" id="eGrade"></dd></div>
-      <div class="wide"><dt>가장 큰 것</dt><dd id="eBig"></dd></div>
+      <div class="wide"><dt>마지막 도착</dt><dd id="eLast"></dd></div>
     </dl>
     <div class="rec" id="eRec"></div>
     <button class="btn" id="again">한 판 더</button>
@@ -152,49 +158,39 @@ const QS = new URLSearchParams(location.search);
 const COARSE = matchMedia('(pointer: coarse)').matches;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rand = (a, b) => a + Math.random() * (b - a);
-// the world layout comes from a fixed seed, so every run starts on the same map
-let seed = 20261103;
+// each campus lays out its props from its own seed, so a campus looks the same every run
+let seed = 1;
 const srand = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
 const srange = (a, b) => a + srand() * (b - a);
+const pick = (a) => a[Math.floor(srand() * a.length)];
+function hashStr(s) { let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
 
-// ============ data
-let D;
+// ============ course: campuses north → south, one after another down a long slope
+let COURSE;
 try {
-  D = await (await fetch('campus.json')).json();
+  COURSE = await (await fetch('course/index.json')).json();
 } catch (err) {
-  $('loading').textContent = '지도 데이터를 불러오지 못했어요. 새로고침해 주세요.';
+  $('loading').textContent = '코스 데이터를 불러오지 못했어요. 새로고침해 주세요.';
   throw err;
 }
-// keep only a band of ground around the campus
+const SLOPE = 0.1, GAP = 60, SIDE = 40;
 {
-  const t = D.terrain, M = 40;
-  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  const grow = ([x, z]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
-  for (const r of D.campus) r.forEach(grow);
-  for (const b of D.buildings) b.o.forEach(grow);
-  const j0 = Math.max(0, Math.floor((x0 - M - t.x0) / t.step)), j1 = Math.min(t.nx - 1, Math.ceil((x1 + M - t.x0) / t.step));
-  const i0 = Math.max(0, Math.floor((z0 - M - t.z0) / t.step)), i1 = Math.min(t.nz - 1, Math.ceil((z1 + M - t.z0) / t.step));
-  const nx = j1 - j0 + 1, nz = i1 - i0 + 1, dm = new Array(nx * nz);
-  for (let i = 0; i < nz; i++) for (let j = 0; j < nx; j++) dm[i * nx + j] = t.dm[(i + i0) * t.nx + j + j0];
-  D.terrain = { ...t, x0: t.x0 + j0 * t.step, z0: t.z0 + i0 * t.step, nx, nz, dm };
+  let z = 0;
+  COURSE.forEach((c, i) => {
+    c.i = i; c.zs = z; c.zc = z + 20 + c.d / 2; c.ze = z + c.d + 40; c.halfW = Math.max(70, c.w / 2 + SIDE);
+    z = c.ze + GAP;
+  });
 }
-const T = D.terrain;
-const W = (T.nx - 1) * T.step, H = (T.nz - 1) * T.step;
-const X1 = T.x0 + W, Z1 = T.z0 + H;
-const elev = Float32Array.from(T.dm, (v) => v / 10);
-function groundY(x, z) {
-  const gj = clamp((x - T.x0) / T.step, 0, T.nx - 1.0001), gi = clamp((z - T.z0) / T.step, 0, T.nz - 1.0001);
-  const j = Math.floor(gj), i = Math.floor(gi), fx = gj - j, fz = gi - i, k = i * T.nx + j;
-  const a = elev[k], b = elev[k + 1], c = elev[k + T.nx], d = elev[k + T.nx + 1];
-  return fx + fz <= 1 ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+const groundY = (x, z) => -SLOPE * z;
+function segIndexAt(z) {
+  let lo = 0, hi = COURSE.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (COURSE[m].zs - GAP / 2 <= z) lo = m; else hi = m - 1; }
+  return lo;
 }
-const CAMPUS = D.campus[0];
-const CB = (() => {
-  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-  for (const [x, z] of CAMPUS) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
-  return { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, x0, x1, z0, z1 };
-})();
-
+function halfWidthAt(z) {
+  const c = COURSE[segIndexAt(z)], n = COURSE[c.i + 1];
+  return z > c.ze && n ? Math.max(c.halfW, n.halfW) : c.halfW;
+}
 function inPoly(x, z, p) {
   let c = false;
   for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
@@ -231,116 +227,18 @@ const scene = new THREE.Scene();
 const SKY = new THREE.Color('#a9c6dd');
 scene.background = SKY.clone();
 scene.fog = new THREE.Fog(SKY.clone(), 80, 500);
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 4000);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.5, 5000);
 scene.add(new THREE.HemisphereLight(0xeef3f8, 0x6d6655, 2.1));
 const sun = new THREE.DirectionalLight(0xfff1dc, 2.0);
 sun.position.set(0.55, 1, 0.3);
 scene.add(sun);
-
 function resize() {
-  const w = innerWidth, h = innerHeight;
-  renderer.setSize(w, h);
-  camera.aspect = w / h;
-  camera.fov = w < h ? 60 : 50;
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
-
-// ============ buildings
-const WALLS = ['#d9d2c5', '#c9bfae', '#bfc4c4', '#d6cdbd', '#b9ae9c', '#e2ddd3', '#cbb9a3'];
-const BLD = D.buildings.map((b, i) => {
-  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, area = 0;
-  b.o.forEach(([x, z], k) => {
-    x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
-    const [nx, nz] = b.o[(k + 1) % b.o.length];
-    area += x * nz - nx * z;
-  });
-  area = Math.abs(area) / 2;
-  return {
-    i, name: b.n || '건물', poly: b.o, x0, x1, z0, z1, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2,
-    base: b.lo - 2, top: b.g + b.h, h: b.h, area,
-    s: 0.33 * (Math.sqrt(area) + b.h), vol: area * b.h * 0.2,
-    wall: WALLS[i % WALLS.length], roof: b.rc || '#cfcabd', alive: true, hitCd: 0, mesh: null,
-  };
-});
-const bldMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-bldMat.onBeforeCompile = (sh) => {
-  // windows drawn in the building's own coordinates, so they stay put when the building rolls with the ball
-  sh.vertexShader = 'varying vec3 vLP;\nvarying vec3 vLN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvLP = position; vLN = normal;');
-  sh.fragmentShader = 'varying vec3 vLP;\nvarying vec3 vLN;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-    if (abs(vLN.y) < 0.5) {
-      vec2 tg = normalize(vec2(-vLN.z, vLN.x));
-      float fu = fract(dot(vLP.xz, tg) / 3.2);
-      float fy = fract((vLP.y - 1.0) / 3.6);
-      float win = step(0.22, fu) * step(fu, 0.78) * step(0.34, fy) * step(fy, 0.84) * step(3.4, vLP.y);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.22, 0.27), win * 0.85);
-    }`);
-};
-for (const b of BLD) {
-  const shape = new THREE.Shape(b.poly.map(([x, z]) => new THREE.Vector2(x - b.cx, -(z - b.cz))));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: b.top - b.base, bevelEnabled: false });
-  geo.rotateX(-Math.PI / 2);
-  const n = geo.attributes.position.count, col = new Float32Array(n * 3);
-  const roof = new THREE.Color(b.roof), wall = new THREE.Color(b.wall);
-  for (const g of geo.groups) {
-    const c = g.materialIndex === 0 ? roof : wall;
-    for (let v = g.start; v < g.start + g.count; v++) col.set([c.r, c.g, c.b], v * 3);
-  }
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  geo.clearGroups();
-  b.mesh = new THREE.Mesh(geo, bldMat);
-  b.mesh.position.set(b.cx, b.base, b.cz);
-  scene.add(b.mesh);
-}
-function inBuilding(x, z, pad) {
-  for (const b of BLD) {
-    if (!b.alive || x < b.x0 - pad || x > b.x1 + pad || z < b.z0 - pad || z > b.z1 + pad) continue;
-    if (inPoly(x, z, b.poly) || closestOnPoly(x, z, b.poly)[2] < pad) return b;
-  }
-  return null;
-}
-
-// ============ ground
-{
-  const PX = Math.min(4, 2048 / Math.max(W, H));
-  const cv = document.createElement('canvas');
-  cv.width = Math.ceil(W * PX); cv.height = Math.ceil(H * PX);
-  const g = cv.getContext('2d');
-  const X = (x) => (x - T.x0) * PX, Y = (z) => (z - T.z0) * PX;
-  const ring = (r) => { g.beginPath(); r.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z)))); g.closePath(); };
-  g.fillStyle = '#8e9b7c'; g.fillRect(0, 0, cv.width, cv.height);
-  g.fillStyle = '#a3b683'; ring(CAMPUS); g.fill();
-  const LC = { wood: '#5f8a4c', park: '#8fbb6a', pitch: '#4f9a5a', water: '#5d9cc4', res: '#b5ad9e' };
-  for (const l of D.lands) for (const r of l.r) { g.fillStyle = LC[l.k] || '#9aa983'; ring(r); g.fill(); }
-  g.lineJoin = 'round'; g.lineCap = 'round';
-  g.fillStyle = g.strokeStyle = '#cdc5b4'; g.lineWidth = 12 * PX;
-  for (const b of BLD) { ring(b.poly); g.fill(); g.stroke(); }
-  const RW = { tertiary: [13, '#6f6e73'], residential: [9, '#77767b'], service: [6, '#8e8d91'], pedestrian: [5, '#d6ccba'], steps: [3.5, '#c7bca8'], path: [2.5, '#cbbfa8'] };
-  for (const pass of [0, 1]) for (const r of D.roads) {
-    const [w, c] = RW[r.k] || [3, '#c9bfa9'];
-    g.strokeStyle = pass ? c : 'rgba(0,0,0,.12)'; g.lineWidth = (w + (pass ? 0 : 1.5)) * PX;
-    g.beginPath(); r.p.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z)) : g.moveTo(X(x), Y(z)))); g.stroke();
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  // the ground mesh uses every other height sample; groundY() still reads the full grid
-  const S2 = 2, gx = Math.floor((T.nx - 1) / S2) + 1, gz = Math.floor((T.nz - 1) / S2) + 1;
-  const pos = new Float32Array(gx * gz * 3), uv = new Float32Array(gx * gz * 2), idx = [];
-  for (let i = 0; i < gz; i++) for (let j = 0; j < gx; j++) {
-    const k = i * gx + j, x = T.x0 + j * S2 * T.step, z = T.z0 + i * S2 * T.step;
-    pos.set([x, elev[i * S2 * T.nx + j * S2], z], k * 3);
-    uv.set([(x - T.x0) / W, 1 - (z - T.z0) / H], k * 2);
-    if (i < gz - 1 && j < gx - 1) idx.push(k, k + gx, k + 1, k + 1, k + gx, k + gx + 1);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  scene.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex })));
-}
 
 // ============ object kinds
 function part(geo, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
@@ -356,7 +254,6 @@ const Box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const Cyl = (a, b, h, n = 10) => new THREE.CylinderGeometry(a, b, h, n);
 const Ico = (r, d = 0) => new THREE.IcosahedronGeometry(r, d);
 const wheel = (r, w, x, y, z) => part(Cyl(r, r, w, 7), '#1d1d1f', x, y, z, Math.PI / 2);
-// s: size used for the "smaller than half the diameter" rule; f: how much of s^3 is solid; cr: collision radius
 const KINDS = {
   can:   { name: '음료 캔', s: 0.15, f: 0.5, cr: 0.05, spare: 150, geo: [part(Cyl(0.033, 0.033, 0.12, 6), '#d23b2f', 0, 0.06, 0)] },
   ball:  { name: '축구공', s: 0.24, f: 0.5, cr: 0.11, spare: 150, geo: [part(Ico(0.11), '#f2f2f2', 0, 0.11, 0)] },
@@ -394,17 +291,267 @@ const CAR_COLORS = ['#e9e9e9', '#2b2b2e', '#9aa3ab', '#c23b32', '#2f5fae', '#f0f
 const BIKE_COLORS = ['#2d6fd1', '#d64545', '#2a2a2a', '#3a9a5b', '#f0c419'];
 const VEND_COLORS = ['#c8322c', '#2f5fae', '#e9e4da', '#3a8a55'];
 const PARASOL_COLORS = ['#e2574c', '#f0c419', '#2f8fb8', '#f4f1ea'];
-
-// ============ object placement
-const OBJ = [];
 const TINY = ['can', 'ball', 'cone', 'pot'];
-function addObj(k, x, z, yaw, sc = 1, color = null) {
-  const K = KINDS[k];
-  if (x < T.x0 + 3 || x > X1 - 3 || z < T.z0 + 3 || z > Z1 - 3) return null;
-  if (inBuilding(x, z, K.s * 0.3 * sc + 0.3)) return null;
-  const s = K.s * sc;
-  const o = { k, x, y: groundY(x, z), z, yaw, sc, s, vol: K.f * s ** 3, cr: K.cr * sc, color, alive: true, slot: -1 };
-  OBJ.push(o);
+const WALLS = ['#d9d2c5', '#c9bfae', '#bfc4c4', '#d6cdbd', '#b9ae9c', '#e2ddd3', '#cbb9a3'];
+// how many of each thing can exist at once across the campuses that are loaded
+const CAPS = { can: 3000, ball: 3000, cone: 3000, pot: 3000, trash: 1400, bike: 1800, bench: 700, vend: 500, parasol: 500, car: 1000, lamp: 600, tree: 2600, bus: 120, chunk: 700 };
+
+// ============ instanced meshes and dirty ranges
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color();
+const UP = new THREE.Vector3(0, 1, 0);
+const DIRTY = [];
+function track(mesh) { mesh.userData.lo = Infinity; mesh.userData.hi = -1; DIRTY.push(mesh); return mesh; }
+function dirty(mesh, i) { const u = mesh.userData; if (i < u.lo) u.lo = i; if (i > u.hi) u.hi = i; }
+// upload only the slots that changed this frame
+function flush() {
+  for (const m of DIRTY) {
+    const u = m.userData;
+    if (u.hi >= 0) {
+      const a = m.instanceMatrix;
+      if (a.addUpdateRange) { a.clearUpdateRanges(); a.addUpdateRange(u.lo * 16, (u.hi - u.lo + 1) * 16); }
+      a.needsUpdate = true;
+      u.lo = Infinity; u.hi = -1;
+    }
+    if (u.colorDirty && m.instanceColor) { m.instanceColor.needsUpdate = true; u.colorDirty = false; }
+    if (u.attrDirty) flushAttrs(m);
+  }
+}
+const WORLD = {};
+for (const k in KINDS) {
+  const cap = CAPS[k], mesh = track(new THREE.InstancedMesh(KINDS[k].geo, objMat, cap));
+  mesh.frustumCulled = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const free = [];
+  for (let i = cap - 1; i >= 0; i--) { mesh.setMatrixAt(i, ZERO); mesh.setColorAt(i, _c.set(0xffffff)); free.push(i); }
+  mesh.count = 0;   // only slots up to the highest one in use get drawn
+  WORLD[k] = { mesh, free };
+  scene.add(mesh);
+}
+function showObj(o) {
+  if (o.k === 'piece') { drawPiece(o); return true; }
+  const w = WORLD[o.k];
+  if (o.slot < 0) {
+    if (!w.free.length) return false;
+    o.slot = w.free.pop();
+    if (o.slot >= w.mesh.count) w.mesh.count = o.slot + 1;
+    w.mesh.setColorAt(o.slot, _c.set(o.color || 0xffffff)); w.mesh.userData.colorDirty = true;
+  }
+  _q.setFromAxisAngle(UP, o.yaw);
+  _m.compose(_p.set(o.x, o.y, o.z), _q, _s.setScalar(o.sc));
+  w.mesh.setMatrixAt(o.slot, _m);
+  dirty(w.mesh, o.slot);
+  return true;
+}
+function hideObj(o) {
+  if (o.k === 'piece') { freePiece(o); return; }
+  const w = WORLD[o.k];
+  if (o.slot < 0) return;
+  w.mesh.setMatrixAt(o.slot, ZERO);
+  dirty(w.mesh, o.slot);
+  w.free.push(o.slot);
+  o.slot = -1;
+}
+
+// ============ spatial grid
+const CELL = 6, GX0 = -6000, GZ0 = -3000;
+const GRID = new Map();
+const gkey = (ix, iz) => ix * 65536 + iz;
+function gridAdd(o) {
+  const k = gkey(Math.floor((o.x - GX0) / CELL), Math.floor((o.z - GZ0) / CELL));
+  let a = GRID.get(k);
+  if (!a) GRID.set(k, (a = []));
+  a.push(o);
+}
+function gridEach(x, z, rad, fn) {
+  const i0 = Math.floor((x - rad - GX0) / CELL), i1 = Math.floor((x + rad - GX0) / CELL);
+  const j0 = Math.floor((z - rad - GZ0) / CELL), j1 = Math.floor((z + rad - GZ0) / CELL);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const a = GRID.get(gkey(i, j));
+    if (!a) continue;
+    for (let n = a.length - 1; n >= 0; n--) {
+      const o = a[n];
+      if (!o.alive) { a[n] = a[a.length - 1]; a.pop(); continue; }
+      fn(o);
+    }
+  }
+}
+
+// ============ building blocks
+// Buildings are columns of blocks (one block per ~8 m across, ~7 m of height), so any part can break off,
+// fall, lie on the ground and stick to the ball. Windows and roofs come from each block's place in its building.
+const PCAP = 22000;
+const blockMat = (extra) => {
+  const m = new THREE.MeshLambertMaterial();
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'attribute vec4 aOrg;\nattribute vec3 aSize;\nattribute vec3 aRoof;\nvarying vec3 vBP;\nvarying vec3 vBN;\nvarying float vTop;\nvarying vec3 vRoof;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBP = aOrg.xyz + position * aSize; vBN = normal; vTop = aOrg.w; vRoof = aRoof;');
+    sh.fragmentShader = 'varying vec3 vBP;\nvarying vec3 vBN;\nvarying float vTop;\nvarying vec3 vRoof;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      if (vBN.y > 0.5 && vTop > 0.5) diffuseColor.rgb = vRoof;
+      else if (abs(vBN.y) < 0.5) {
+        float fu = fract((abs(vBN.x) > 0.5 ? vBP.z : vBP.x) / 3.2);
+        float fy = fract((vBP.y - 1.0) / 3.6);
+        float win = step(0.22, fu) * step(fu, 0.78) * step(0.34, fy) * step(fy, 0.84) * step(3.4, vBP.y);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.22, 0.27), win * 0.85);
+      } else diffuseColor.rgb *= 0.72;`);
+  };
+  return m;
+};
+function blockMesh(cap) {
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  geo.setAttribute('aOrg', new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
+  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3));
+  geo.setAttribute('aRoof', new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3));
+  const m = track(new THREE.InstancedMesh(geo, blockMat(), cap));
+  m.frustumCulled = false;
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < cap; i++) { m.setMatrixAt(i, ZERO); m.setColorAt(i, _c.set(0xffffff)); }
+  m.count = 0;
+  return m;
+}
+function writeBlock(mesh, slot, p) {
+  const g = mesh.geometry;
+  g.attributes.aOrg.array.set([p.u, p.ly, p.v, p.top ? 1 : 0], slot * 4);
+  g.attributes.aSize.array.set([p.sx, p.sy, p.sz], slot * 3);
+  _c.set(p.b.roof); g.attributes.aRoof.array.set([_c.r, _c.g, _c.b], slot * 3);
+  mesh.setColorAt(slot, _c.set(p.b.wall));
+  mesh.userData.attrDirty = true; mesh.userData.colorDirty = true;
+  if (slot >= mesh.count) mesh.count = slot + 1;
+}
+function flushAttrs(mesh) {
+  if (!mesh.userData.attrDirty) return;
+  const a = mesh.geometry.attributes;
+  a.aOrg.needsUpdate = a.aSize.needsUpdate = a.aRoof.needsUpdate = true;
+  mesh.userData.attrDirty = false;
+}
+const PM = blockMesh(PCAP);
+scene.add(PM);
+const pFree = [];
+for (let i = PCAP - 1; i >= 0; i--) pFree.push(i);
+function drawPiece(p) {
+  if (p.slot < 0) return;
+  _m.compose(_p.set(p.x, p.y, p.z), p.q, _s.set(p.sx, p.sy, p.sz));
+  PM.setMatrixAt(p.slot, _m); dirty(PM, p.slot);
+}
+function freePiece(p) {
+  if (p.slot < 0) return;
+  PM.setMatrixAt(p.slot, ZERO); dirty(PM, p.slot);
+  pFree.push(p.slot); p.slot = -1;
+}
+function makeBuilding(c, src, idx) {
+  const poly = src.o.map(([x, z]) => [x, z + c.zc]);
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, area = 0;
+  poly.forEach(([x, z], k) => {
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
+    const [nx, nz] = poly[(k + 1) % poly.length];
+    area += x * nz - nx * z;
+  });
+  area = Math.abs(area) / 2;
+  if (area < 12) return null;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, h = clamp(src.h || 12, 4, 120);
+  const base = groundY(0, z1) - 1.5, top = groundY(0, cz) + h;
+  const b = {
+    seg: c, name: src.n || '건물', poly, x0, x1, z0, z1, cx, cz, area, base, h: top - base,
+    s: 0.33 * (Math.sqrt(area) + h), wall: WALLS[(hashStr(c.code) + idx) % WALLS.length], roof: src.rc || '#cfcabd',
+    alive: true, hitCd: 0, cols: [], pieces: [],
+  };
+  let th = 0, bl = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, az] = poly[i], [bx, bz] = poly[(i + 1) % poly.length], l = Math.hypot(bx - ax, bz - az);
+    if (l > bl) { bl = l; th = Math.atan2(bz - az, bx - ax); }
+  }
+  // grid frame: u along the longest wall, v across it
+  const cs = Math.cos(th), sn = Math.sin(th);
+  const uv = poly.map(([x, z]) => [(x - cx) * cs + (z - cz) * sn, -(x - cx) * sn + (z - cz) * cs]);
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const [u, v] of uv) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  const cell = c.cell, nu = Math.max(1, Math.round((u1 - u0) / cell)), nv = Math.max(1, Math.round((v1 - v0) / cell));
+  const cu = (u1 - u0) / nu, cv = (v1 - v0) / nv;
+  const L = Math.max(1, Math.round((b.h - 1.5) / 7)), lh = b.h / L;
+  const cells = [];
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+    const uc = u0 + (i + 0.5) * cu, vc = v0 + (j + 0.5) * cv;
+    if (inPoly(uc, vc, uv)) cells.push([uc, vc]);
+  }
+  if (!cells.length) cells.push([(u0 + u1) / 2, (v0 + v1) / 2]);
+  if (pFree.length < cells.length * L) return null;
+  const hq = new THREE.Quaternion().setFromAxisAngle(UP, -th);
+  Object.assign(b, { cos: cs, sin: sn });
+  for (const [uc, vc] of cells) {
+    const col = [];
+    for (let k = 0; k < L; k++) {
+      const p = {
+        k: 'piece', b, seg: c, slot: pFree.pop(), top: k === L - 1, u: uc, v: vc, ly: (k + 0.5) * lh, sx: cu, sy: lh, sz: cv,
+        s: 0.45 * (Math.max(cu, cv) + lh), vol: cu * lh * cv * 0.07, cr: Math.max(cu, cv) * 0.5,
+        hx: cx + uc * cs - vc * sn, hz: cz + uc * sn + vc * cs, hq,
+        x: 0, y: 0, z: 0, q: new THREE.Quaternion(), state: 'intact', alive: false,
+      };
+      p.x = p.hx; p.z = p.hz; p.y = base + p.ly; p.q.copy(hq);
+      writeBlock(PM, p.slot, p);
+      drawPiece(p);
+      col.push(p); b.pieces.push(p);
+    }
+    b.cols.push(col);
+  }
+  b.minS = Math.min(...b.pieces.map((p) => p.s));
+  return b;
+}
+
+// ============ ground for one campus
+function makeGround(c, d) {
+  const z0 = c.zs - GAP / 2, z1 = c.ze + GAP / 2, hw = c.halfW + 160, Wd = 2 * hw, Hd = z1 - z0;
+  const PX = Math.min(2.5, 1600 / Math.max(Wd, Hd));
+  const cv = document.createElement('canvas');
+  cv.width = Math.ceil(Wd * PX); cv.height = Math.ceil(Hd * PX);
+  const g = cv.getContext('2d');
+  const X = (x) => (x + hw) * PX, Y = (z) => (z - z0) * PX;
+  const ring = (r) => { g.beginPath(); r.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z + c.zc)) : g.moveTo(X(x), Y(z + c.zc)))); g.closePath(); };
+  g.fillStyle = '#5f7d52'; g.fillRect(0, 0, cv.width, cv.height);
+  g.fillStyle = '#8e9b7c'; g.fillRect(X(-c.halfW), 0, (2 * c.halfW) * PX, cv.height);
+  if (d.campus.length) { g.fillStyle = '#a3b683'; ring(d.campus); g.fill(); }
+  const LC = { wood: '#5f8a4c', park: '#8fbb6a', pitch: '#4f9a5a', water: '#5d9cc4', res: '#b5ad9e' };
+  for (const l of d.lands) for (const r of l.r) { g.fillStyle = LC[l.k] || '#9aa983'; ring(r); g.fill(); }
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  g.fillStyle = g.strokeStyle = '#cdc5b4'; g.lineWidth = 10 * PX;
+  for (const b of d.buildings) { ring(b.o); g.fill(); g.stroke(); }
+  // the road that links one campus to the next
+  g.strokeStyle = '#77767b'; g.lineWidth = 12 * PX;
+  g.beginPath(); g.moveTo(X(0), 0); g.lineTo(X(0), Y(c.zs + 20)); g.moveTo(X(0), Y(c.ze - 20)); g.lineTo(X(0), cv.height); g.stroke();
+  const RW = { motorway: [16, '#6f6e73'], trunk: [14, '#6f6e73'], primary: [13, '#6f6e73'], secondary: [12, '#6f6e73'], tertiary: [11, '#6f6e73'],
+    residential: [8, '#77767b'], service: [6, '#8e8d91'], pedestrian: [5, '#d6ccba'], footway: [3, '#d6ccba'], steps: [3.5, '#c7bca8'], path: [2.5, '#cbbfa8'] };
+  for (const r of d.roads) {
+    const [w, col] = RW[r.k] || [3, '#c9bfa9'];
+    g.strokeStyle = col; g.lineWidth = w * PX;
+    g.beginPath(); r.p.forEach(([x, z], i) => (i ? g.lineTo(X(x), Y(z + c.zc)) : g.moveTo(X(x), Y(z + c.zc)))); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-hw, groundY(0, z0), z0, hw, groundY(0, z0), z0, -hw, groundY(0, z1), z1, hw, groundY(0, z1), z1]), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 1, 1, 1, 0, 0, 1, 0]), 2));
+  geo.setIndex([0, 2, 1, 1, 2, 3]);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex }));
+  scene.add(mesh);
+  return mesh;
+}
+
+// ============ props for one campus
+function inBuildingOf(c, x, z, pad) {
+  for (const b of c.blds) {
+    if (x < b.x0 - pad || x > b.x1 + pad || z < b.z0 - pad || z > b.z1 + pad) continue;
+    if (inPoly(x, z, b.poly) || closestOnPoly(x, z, b.poly)[2] < pad) return true;
+  }
+  return false;
+}
+function addObj(c, k, x, z, yaw, sc = 1, color = null) {
+  const K = KINDS[k], s = K.s * sc;
+  if (Math.abs(x) > c.halfW - 3 || z < c.zs - GAP / 2 || z > c.ze + GAP / 2) return null;
+  if (inBuildingOf(c, x, z, K.s * 0.3 * sc + 0.3)) return null;
+  const o = { k, seg: c, x, y: groundY(x, z), z, yaw, sc, s, vol: K.f * s ** 3, cr: K.cr * sc, color, alive: true, slot: -1 };
+  if (!showObj(o)) return null;
+  c.objs.push(o); gridAdd(o);
   return o;
 }
 function walk(p, step, fn) {
@@ -418,237 +565,126 @@ function walk(p, step, fn) {
     left = d - len;
   }
 }
-const pick = (a) => a[Math.floor(srand() * a.length)];
-for (const r of D.roads) {
-  const car = r.k === 'tertiary' || r.k === 'residential' || r.k === 'service';
-  if (car) {
-    const off = r.k === 'service' ? 2.2 : 3.4;
-    walk(r.p, r.k === 'service' ? 8 : 7, (x, z, ux, uz) => {
-      if (srand() > (r.k === 'service' ? 0.6 : 0.75)) return;
-      const side = srand() < 0.5 ? 1 : -1;
-      addObj('car', x - uz * off * side, z + ux * off * side, Math.atan2(-uz, ux) + (side < 0 ? Math.PI : 0), 1, pick(CAR_COLORS));
-    });
-    walk(r.p, r.k === 'service' ? 28 : 22, (x, z, ux, uz) => {
-      const side = srand() < 0.5 ? 1 : -1, off2 = off + 2;
-      addObj('lamp', x - uz * off2 * side, z + ux * off2 * side, Math.atan2(-uz, ux) + (side > 0 ? Math.PI / 2 : -Math.PI / 2));
-    });
-    walk(r.p, 3, (x, z, ux, uz) => {
-      // litter and cones along the kerb
-      const side = srand() < 0.5 ? 1 : -1, d = off + srange(1.5, 4);
-      if (srand() < 0.6) addObj(pick(TINY), x - uz * d * side, z + ux * d * side, srand() * 6.28);
-    });
-    if (r.k !== 'service') walk(r.p, 45, (x, z, ux, uz) => {
-      if (srand() < 0.6) addObj('bus', x + uz * off, z - ux * off, Math.atan2(-uz, ux), 1, pick(['#3d9a5b', '#2f6fb8', '#3d9a5b']));
-    });
-  } else {
-    walk(r.p, 10, (x, z, ux, uz) => {
-      const side = srand() < 0.5 ? 1 : -1;
-      addObj('bench', x - uz * 2.6 * side, z + ux * 2.6 * side, Math.atan2(-uz, ux) + (side > 0 ? Math.PI : 0));
-    });
-    walk(r.p, 6, (x, z, ux, uz) => addObj(srand() < 0.5 ? 'trash' : 'pot', x + uz * srange(-3.5, 3.5), z - ux * srange(-3.5, 3.5), srand() * 6.28));
-    walk(r.p, 42, (x, z, ux, uz) => {
-      const n = 2 + Math.floor(srand() * 4), c = 4;
-      for (let q = 0; q < n; q++) addObj('bike', x + uz * c + ux * q * 0.7, z - ux * c + uz * q * 0.7, Math.atan2(-ux, -uz), 1, pick(BIKE_COLORS));
-    });
-    walk(r.p, 1.2, (x, z) => { if (srand() < 0.8) addObj(pick(TINY), x + srange(-4, 4), z + srange(-4, 4), srand() * 6.28); });
-  }
-}
-for (const b of BLD) {
-  const ring = [...b.poly, b.poly[0]];
-  walk(ring, 3, (x, z, ux, uz) => {
-    // outward normal: try one side, flip if it lands inside
-    let nx = uz, nz = -ux;
-    if (inPoly(x + nx * 2, z + nz * 2, b.poly)) { nx = -nx; nz = -nz; }
-    const d = srange(2, 4.5), px = x + nx * d, pz = z + nz * d, u = srand();
-    if (u < 0.3) addObj('pot', px, pz, srand() * 6.28);
-    else if (u < 0.42) addObj('trash', px, pz, srand() * 6.28);
-    else if (u < 0.52) for (let q = 0; q < 3; q++) addObj('bike', px + ux * q * 0.7, pz + uz * q * 0.7, Math.atan2(-nx, -nz) + Math.PI / 2, 1, pick(BIKE_COLORS));
-    else if (u < 0.58) addObj('vend', px, pz, Math.atan2(nx, nz), 1, pick(VEND_COLORS));
-    else if (u < 0.85) addObj(pick(TINY), px + srange(-1, 1), pz + srange(-1, 1), srand() * 6.28);
-  });
-}
-for (let n = 0, tries = 0; n < 3500 && tries < 30000; tries++) {
-  const x = srange(CB.x0, CB.x1), z = srange(CB.z0, CB.z1);
-  if (inPoly(x, z, CAMPUS) && addObj(pick(TINY), x, z, srand() * 6.28)) n++;
-}
-// little clusters on the lawns: a bench with pots and bins, or a row of bikes
-for (let n = 0, tries = 0; n < 160 && tries < 4000; tries++) {
-  const x = srange(CB.x0, CB.x1), z = srange(CB.z0, CB.z1);
-  if (!inPoly(x, z, CAMPUS) || inBuilding(x, z, 4)) continue;
-  n++;
-  const yaw = srand() * 6.28, ux = Math.cos(yaw), uz = -Math.sin(yaw);
-  const u = srand();
-  if (u < 0.35) {
-    addObj('bench', x, z, yaw);
-    for (let q = 0; q < 5; q++) addObj(srand() < 0.5 ? 'pot' : 'trash', x + srange(-3, 3), z + srange(-3, 3), srand() * 6.28);
-  } else if (u < 0.65) for (let q = 0; q < 6; q++) addObj('bike', x + uz * q * 0.7, z - ux * q * 0.7, yaw, 1, pick(BIKE_COLORS));
-  else for (let q = 0; q < 4; q++) addObj('parasol', x + srange(-6, 6), z + srange(-6, 6), srand() * 6.28, 1, pick(PARASOL_COLORS));
-}
-for (const [x, z, v] of D.trees) addObj('tree', x, z, srand() * 6.28, 0.45 + v * 0.85);
-// start: the walkway point nearest the middle of the campus, with a handful of tiny things around it
-const START = (() => {
-  let best = null, bd = Infinity;
-  for (const r of D.roads) if (r.k === 'pedestrian' || r.k === 'path') for (const [x, z] of r.p) {
-    const d = Math.hypot(x - CB.cx, z - CB.cz);
-    if (d < bd && !inBuilding(x, z, 4)) { bd = d; best = [x, z]; }
-  }
-  return best || [CB.cx, CB.cz];
-})();
-for (let n = 0, tries = 0; n < 260 && tries < 3000; tries++) {
-  const a = srand() * 6.28, d = 1.5 + 28 * Math.sqrt(srand());
-  if (addObj(pick(['can', 'ball', 'cone', 'cone']), START[0] + Math.cos(a) * d, START[1] + Math.sin(a) * d, srand() * 6.28)) n++;
-}
-for (let n = 0, tries = 0; n < 70 && tries < 1500; tries++) {
-  const a = srand() * 6.28, d = 8 + 40 * Math.sqrt(srand());
-  if (addObj(srand() < 0.6 ? 'pot' : 'trash', START[0] + Math.cos(a) * d, START[1] + Math.sin(a) * d, srand() * 6.28)) n++;
-}
-
-// ============ instanced world objects
-const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
-const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color();
-const UP = new THREE.Vector3(0, 1, 0);
-const WORLD = {};
-for (const k in KINDS) {
-  const list = OBJ.filter((o) => o.k === k), cap = list.length + KINDS[k].spare;
-  const mesh = new THREE.InstancedMesh(KINDS[k].geo, objMat, cap);
-  mesh.frustumCulled = false;
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const free = [];
-  for (let i = cap - 1; i >= 0; i--) { mesh.setMatrixAt(i, ZERO); mesh.setColorAt(i, _c.set(0xffffff)); free.push(i); }
-  mesh.count = 0;   // only slots up to the highest one in use get drawn
-  WORLD[k] = { mesh, free };
-  scene.add(mesh);
-}
-function showObj(o) {
-  if (o.k === 'piece') { drawPiece(o); return true; }
-  const w = WORLD[o.k];
-  if (o.slot < 0) { if (!w.free.length) return false; o.slot = w.free.pop(); if (o.slot >= w.mesh.count) w.mesh.count = o.slot + 1; }
-  _q.setFromAxisAngle(UP, o.yaw);
-  _m.compose(_p.set(o.x, o.y, o.z), _q, _s.setScalar(o.sc));
-  w.mesh.setMatrixAt(o.slot, _m);
-  w.mesh.setColorAt(o.slot, _c.set(o.color || 0xffffff));
-  w.mesh.instanceMatrix.needsUpdate = true;
-  if (w.mesh.instanceColor) w.mesh.instanceColor.needsUpdate = true;
-  return true;
-}
-function hideObj(o) {
-  if (o.k === 'piece') { hidePiece(o); return; }
-  const w = WORLD[o.k];
-  if (o.slot < 0) return;
-  w.mesh.setMatrixAt(o.slot, ZERO);
-  w.mesh.instanceMatrix.needsUpdate = true;
-  w.free.push(o.slot);
-  o.slot = -1;
-}
-
-// ============ spatial grid
-const CELL = 6;
-const GRID = new Map();
-const gkey = (ix, iz) => ix * 65536 + iz;
-function gridAdd(o) {
-  const k = gkey(Math.floor((o.x - T.x0) / CELL), Math.floor((o.z - T.z0) / CELL));
-  let a = GRID.get(k);
-  if (!a) GRID.set(k, (a = []));
-  a.push(o);
-}
-function gridEach(x, z, rad, fn) {
-  const i0 = Math.floor((x - rad - T.x0) / CELL), i1 = Math.floor((x + rad - T.x0) / CELL);
-  const j0 = Math.floor((z - rad - T.z0) / CELL), j1 = Math.floor((z + rad - T.z0) / CELL);
-  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-    const a = GRID.get(gkey(i, j));
-    if (!a) continue;
-    for (let n = a.length - 1; n >= 0; n--) {
-      const o = a[n];
-      if (!o.alive) { a[n] = a[a.length - 1]; a.pop(); continue; }
-      fn(o);
+const CARROADS = new Set(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'residential', 'service', 'unclassified']);
+function placeProps(c, d) {
+  seed = hashStr(c.code) || 1;
+  const Z = (p) => p.map(([x, z]) => [x, z + c.zc]);
+  for (const r of d.roads) {
+    const p = Z(r.p);
+    if (CARROADS.has(r.k)) {
+      const off = r.k === 'service' ? 2.2 : 3.4;
+      walk(p, 9, (x, z, ux, uz) => {
+        if (srand() > 0.6) return;
+        const side = srand() < 0.5 ? 1 : -1;
+        addObj(c, 'car', x - uz * off * side, z + ux * off * side, Math.atan2(-uz, ux) + (side < 0 ? Math.PI : 0), 1, pick(CAR_COLORS));
+      });
+      walk(p, 26, (x, z, ux, uz) => {
+        const side = srand() < 0.5 ? 1 : -1, o2 = off + 2;
+        addObj(c, 'lamp', x - uz * o2 * side, z + ux * o2 * side, Math.atan2(-uz, ux) + (side > 0 ? Math.PI / 2 : -Math.PI / 2));
+      });
+      walk(p, 4, (x, z, ux, uz) => {
+        const side = srand() < 0.5 ? 1 : -1, dd = off + srange(1.5, 4);
+        if (srand() < 0.5) addObj(c, pick(TINY), x - uz * dd * side, z + ux * dd * side, srand() * 6.28);
+      });
+      if (r.k !== 'service') walk(p, 70, (x, z, ux, uz) => { if (srand() < 0.5) addObj(c, 'bus', x + uz * off, z - ux * off, Math.atan2(-uz, ux), 1, pick(['#3d9a5b', '#2f6fb8'])); });
+    } else {
+      walk(p, 12, (x, z, ux, uz) => {
+        const side = srand() < 0.5 ? 1 : -1;
+        addObj(c, 'bench', x - uz * 2.6 * side, z + ux * 2.6 * side, Math.atan2(-uz, ux) + (side > 0 ? Math.PI : 0));
+      });
+      walk(p, 8, (x, z, ux, uz) => addObj(c, srand() < 0.5 ? 'trash' : 'pot', x + uz * srange(-3.5, 3.5), z - ux * srange(-3.5, 3.5), srand() * 6.28));
+      walk(p, 45, (x, z, ux, uz) => {
+        const n = 2 + Math.floor(srand() * 4);
+        for (let q = 0; q < n; q++) addObj(c, 'bike', x + uz * 4 + ux * q * 0.7, z - ux * 4 + uz * q * 0.7, Math.atan2(-ux, -uz), 1, pick(BIKE_COLORS));
+      });
+      walk(p, 1.8, (x, z) => { if (srand() < 0.75) addObj(c, pick(TINY), x + srange(-4, 4), z + srange(-4, 4), srand() * 6.28); });
     }
   }
-}
-for (const o of OBJ) { showObj(o); gridAdd(o); }
-
-// ============ building pieces
-// Every building is cut into columns of blocks (about 6.5 m wide, one block per ~7 m of height). A building is drawn as
-// its exact outline until it is first hit; then it switches to its blocks, which break off, fall, lie on the ground and stick to the ball.
-const PCELL = 6.5, PLAYER = 7;
-const PIECES = [];
-for (const b of BLD) {
-  let th = 0, bl = 0;
-  for (let i = 0; i < b.poly.length; i++) {
-    const [ax, az] = b.poly[i], [bx, bz] = b.poly[(i + 1) % b.poly.length], l = Math.hypot(bx - ax, bz - az);
-    if (l > bl) { bl = l; th = Math.atan2(bz - az, bx - ax); }
+  for (const b of c.blds) {
+    walk([...b.poly, b.poly[0]], 5, (x, z, ux, uz) => {
+      let nx = uz, nz = -ux;
+      if (inPoly(x + nx * 2, z + nz * 2, b.poly)) { nx = -nx; nz = -nz; }
+      const dd = srange(2, 4.5), px = x + nx * dd, pz = z + nz * dd, u = srand();
+      if (u < 0.3) addObj(c, 'pot', px, pz, srand() * 6.28);
+      else if (u < 0.4) addObj(c, 'trash', px, pz, srand() * 6.28);
+      else if (u < 0.48) for (let q = 0; q < 3; q++) addObj(c, 'bike', px + ux * q * 0.7, pz + uz * q * 0.7, Math.atan2(-nx, -nz) + Math.PI / 2, 1, pick(BIKE_COLORS));
+      else if (u < 0.55) addObj(c, 'vend', px, pz, Math.atan2(nx, nz), 1, pick(VEND_COLORS));
+      else if (u < 0.85) addObj(c, pick(TINY), px + srange(-1, 1), pz + srange(-1, 1), srand() * 6.28);
+    });
   }
-  // grid frame: u along the longest wall, v across it
-  const c = Math.cos(th), s = Math.sin(th);
-  const uv = b.poly.map(([x, z]) => [(x - b.cx) * c + (z - b.cz) * s, -(x - b.cx) * s + (z - b.cz) * c]);
-  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
-  for (const [u, v] of uv) { u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
-  const nu = Math.max(1, Math.round((u1 - u0) / PCELL)), nv = Math.max(1, Math.round((v1 - v0) / PCELL));
-  const cu = (u1 - u0) / nu, cv = (v1 - v0) / nv;
-  const hb = b.top - b.base, L = Math.max(1, Math.round((hb - 2) / PLAYER)), lh = hb / L;
-  const cells = [];
-  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
-    const uc = u0 + (i + 0.5) * cu, vc = v0 + (j + 0.5) * cv;
-    if (inPoly(uc, vc, uv)) cells.push([uc, vc]);
-  }
-  if (!cells.length) cells.push([(u0 + u1) / 2, (v0 + v1) / 2]);
-  const hq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -th);
-  Object.assign(b, { th, cos: c, sin: s, cols: [], pieces: [], mode: 'mesh' });
-  for (const [uc, vc] of cells) {
-    const col = [];
-    for (let k = 0; k < L; k++) {
-      const p = {
-        k: 'piece', b, slot: PIECES.length, top: k === L - 1, u: uc, v: vc, ly: (k + 0.5) * lh, sx: cu, sy: lh, sz: cv,
-        s: 0.45 * (Math.max(cu, cv) + lh), vol: cu * lh * cv * 0.07, cr: Math.max(cu, cv) * 0.5,
-        hx: b.cx + uc * c - vc * s, hz: b.cz + uc * s + vc * c, hq,
-        x: 0, y: 0, z: 0, q: new THREE.Quaternion(), state: 'intact', alive: false,
-      };
-      col.push(p); b.pieces.push(p); PIECES.push(p);
+  const camp = Z(d.campus);
+  if (camp.length > 2) {
+    const area = c.w * c.d;
+    for (let n = 0, tries = 0; n < Math.min(1400, area * 0.006) && tries < 15000; tries++) {
+      const x = srange(-c.w / 2, c.w / 2), z = c.zc + srange(-c.d / 2, c.d / 2);
+      if (inPoly(x, z, camp) && addObj(c, pick(TINY), x, z, srand() * 6.28)) n++;
     }
-    b.cols.push(col);
+    for (let n = 0, tries = 0; n < Math.min(80, area * 0.0003) && tries < 2000; tries++) {
+      const x = srange(-c.w / 2, c.w / 2), z = c.zc + srange(-c.d / 2, c.d / 2);
+      if (!inPoly(x, z, camp) || inBuildingOf(c, x, z, 4)) continue;
+      n++;
+      const yaw = srand() * 6.28, ux = Math.cos(yaw), uz = -Math.sin(yaw), u = srand();
+      if (u < 0.35) { addObj(c, 'bench', x, z, yaw); for (let q = 0; q < 5; q++) addObj(c, srand() < 0.5 ? 'pot' : 'trash', x + srange(-3, 3), z + srange(-3, 3), srand() * 6.28); }
+      else if (u < 0.65) for (let q = 0; q < 6; q++) addObj(c, 'bike', x + uz * q * 0.7, z - ux * q * 0.7, yaw, 1, pick(BIKE_COLORS));
+      else for (let q = 0; q < 4; q++) addObj(c, 'parasol', x + srange(-6, 6), z + srange(-6, 6), srand() * 6.28, 1, pick(PARASOL_COLORS));
+    }
   }
-  b.minS = Math.min(...b.pieces.map((p) => p.s));
+  for (const [x, z, v] of d.trees) addObj(c, 'tree', x, z + c.zc, srand() * 6.28, 0.45 + v * 0.85);
+  // the linking road between campuses: litter, cones and a few cars to keep the ball fed
+  for (const [za, zb] of [[c.zs - GAP / 2, c.zs + 20], [c.ze - 20, c.ze + GAP / 2]]) {
+    for (let z = za; z < zb; z += 1.4) addObj(c, pick(TINY), srange(-14, 14), z, srand() * 6.28);
+    for (let z = za; z < zb; z += 14) if (srand() < 0.6) addObj(c, 'car', srange(-9, 9), z, srand() < 0.5 ? Math.PI / 2 : -Math.PI / 2, 1, pick(CAR_COLORS));
+  }
+  if (c.i === 0) for (let n = 0; n < 260; n++) {
+    const a = srand() * 6.28, dd = 1.5 + 26 * Math.sqrt(srand());
+    addObj(c, pick(['can', 'ball', 'cone', 'cone']), Math.cos(a) * dd, START_Z + 18 + Math.sin(a) * dd, srand() * 6.28);
+  }
 }
-function resetPiece(p) {
-  p.state = 'intact'; p.alive = false;
-  p.x = p.hx; p.z = p.hz; p.y = p.b.base + p.ly; p.q.copy(p.hq);
+
+// ============ streaming campuses in and out
+const START_Z = -GAP / 2 + 6;
+const AHEAD = 1300, BEHIND = 160;
+const LOADED = [];
+async function loadSeg(c) {
+  if (c.loaded || c.loading) return;
+  c.loading = true;
+  try {
+    if (!c.data) c.data = await (await fetch(`course/${c.code}.json`)).json();
+  } catch { c.loading = false; return; }
+  if (!c.loading) return;           // unloaded while the file was on its way
+  const d = c.data;
+  // bigger campuses get bigger blocks so the block budget holds
+  let est = 0;
+  for (const b of d.buildings) { let a = 0; b.o.forEach(([x, z], k) => { const [nx, nz] = b.o[(k + 1) % b.o.length]; a += x * nz - nx * z; }); est += (Math.abs(a) / 2) * Math.max(1, b.h / 7); }
+  c.cell = Math.max(8, Math.sqrt(est / 5500));
+  c.blds = []; c.objs = [];
+  d.buildings.forEach((src, i) => { const b = makeBuilding(c, src, i); if (b) c.blds.push(b); });
+  c.ground = makeGround(c, d);
+  placeProps(c, d);
+  flushAttrs(PM);
+  c.loaded = true; c.loading = false;
+  LOADED.push(c);
 }
-const pieceMat = new THREE.MeshLambertMaterial();
-pieceMat.onBeforeCompile = (sh) => {
-  // windows and roofs come from each block's place in its building, so they stay put when the block tumbles
-  sh.vertexShader = 'attribute vec4 aOrg;\nattribute vec3 aSize;\nattribute vec3 aRoof;\nvarying vec3 vBP;\nvarying vec3 vBN;\nvarying float vTop;\nvarying vec3 vRoof;\n' +
-    sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBP = aOrg.xyz + position * aSize; vBN = normal; vTop = aOrg.w; vRoof = aRoof;');
-  sh.fragmentShader = 'varying vec3 vBP;\nvarying vec3 vBN;\nvarying float vTop;\nvarying vec3 vRoof;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-    if (vBN.y > 0.5 && vTop > 0.5) diffuseColor.rgb = vRoof;
-    else if (abs(vBN.y) < 0.5) {
-      float fu = fract((abs(vBN.x) > 0.5 ? vBP.z : vBP.x) / 3.2);
-      float fy = fract((vBP.y - 1.0) / 3.6);
-      float win = step(0.22, fu) * step(fu, 0.78) * step(0.34, fy) * step(fy, 0.84) * step(3.4, vBP.y);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.22, 0.27), win * 0.85);
-    } else diffuseColor.rgb *= 0.72;`);
-};
-const PM = (() => {
-  const n = PIECES.length, geo = new THREE.BoxGeometry(1, 1, 1);
-  const org = new Float32Array(n * 4), size = new Float32Array(n * 3), roof = new Float32Array(n * 3);
-  PIECES.forEach((p, i) => {
-    org.set([p.u, p.ly, p.v, p.top ? 1 : 0], i * 4); size.set([p.sx, p.sy, p.sz], i * 3);
-    _c.set(p.b.roof); roof.set([_c.r, _c.g, _c.b], i * 3);
-  });
-  geo.setAttribute('aOrg', new THREE.InstancedBufferAttribute(org, 4));
-  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 3));
-  geo.setAttribute('aRoof', new THREE.InstancedBufferAttribute(roof, 3));
-  const m = new THREE.InstancedMesh(geo, pieceMat, n);
-  m.frustumCulled = false;
-  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  PIECES.forEach((p, i) => { m.setMatrixAt(i, ZERO); m.setColorAt(i, _c.set(p.b.wall)); resetPiece(p); });
-  scene.add(m);
-  return m;
-})();
-let pmDirty = false;
-function drawPiece(p) {
-  _m.compose(_p.set(p.x, p.y, p.z), p.q, _s.set(p.sx, p.sy, p.sz));
-  PM.setMatrixAt(p.slot, _m); pmDirty = true;
+function unloadSeg(c) {
+  c.loading = false;
+  if (!c.loaded) return;
+  c.loaded = false;
+  LOADED.splice(LOADED.indexOf(c), 1);
+  for (const o of c.objs) { o.alive = false; hideObj(o); }
+  for (const b of c.blds) for (const p of b.pieces) { p.alive = false; if (p.state !== 'stuck') freePiece(p); }
+  for (let i = flying.length - 1; i >= 0; i--) if (flying[i].seg === c) flying.splice(i, 1);
+  scene.remove(c.ground);
+  c.ground.geometry.dispose(); c.ground.material.map.dispose(); c.ground.material.dispose();
+  c.blds = []; c.objs = []; c.ground = null;
 }
-function hidePiece(p) { PM.setMatrixAt(p.slot, ZERO); pmDirty = true; }
+function stream() {
+  for (const c of [...LOADED]) if (c.ze + BEHIND < S.z) unloadSeg(c);
+  for (let i = segIndexAt(S.z); i < COURSE.length; i++) {
+    const c = COURSE[i];
+    if (c.zs - S.z > AHEAD) break;
+    if (!c.loaded && !c.loading) loadSeg(c);
+  }
+}
 
 // ============ ball
 function makeBallTex() {
@@ -676,7 +712,7 @@ ballSpin.add(core);
 const STUCK = {};
 for (const k in KINDS) {
   const cap = k === 'chunk' ? 140 : 70;
-  const mesh = new THREE.InstancedMesh(KINDS[k].geo, objMat, cap);
+  const mesh = track(new THREE.InstancedMesh(KINDS[k].geo, objMat, cap));
   mesh.frustumCulled = false;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for (let i = 0; i < cap; i++) { mesh.setMatrixAt(i, ZERO); mesh.setColorAt(i, _c.set(0xffffff)); }
@@ -684,6 +720,10 @@ for (const k in KINDS) {
   STUCK[k] = { mesh, cap, ring: 0, owner: new Int32Array(cap) };
   ballSpin.add(mesh);
 }
+// building blocks on the ball live in their own small mesh inside the ball, so they roll with it for free
+const SPCAP = 260;
+const SPM = blockMesh(SPCAP);
+ballSpin.add(SPM);
 const shadow = (() => {
   const cv = document.createElement('canvas');
   cv.width = cv.height = 64;
@@ -691,7 +731,7 @@ const shadow = (() => {
   gr.addColorStop(0, 'rgba(0,0,0,.45)'); gr.addColorStop(0.6, 'rgba(0,0,0,.25)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-  m.rotation.x = -Math.PI / 2;
+  m.rotation.x = -Math.PI / 2 + Math.atan(SLOPE);
   scene.add(m);
   return m;
 })();
@@ -708,29 +748,37 @@ const CARDS = [
   { id: 'magnet', name: '자석', desc: (l) => `근처 물건이 공 쪽으로 끌려와요. 끌어오는 거리 +${35 * l}%` },
   { id: 'sticky', name: '끈끈이', desc: (l) => `공 지름의 ${50 + 5 * l}%까지 붙어요` },
   { id: 'dash', name: '질주', desc: (l) => `최고 속도와 가속 +${15 * l}%` },
-  { id: 'ram', name: '돌진', desc: (l) => `건물을 들이받으면 조각이 ${l + 1}배로 떨어져요` },
+  { id: 'ram', name: '돌진', desc: (l) => `건물을 들이받을 때 부서지는 힘 +${30 * l}%` },
   { id: 'twin', name: '쌍둥이 공', desc: (l) => `작은 공이 곁을 돌며 물건을 주워 줘요 (크기 ${l}단계)` },
-  { id: 'slope', name: '비탈길', desc: (l) => `내리막에서 +${35 * l}% 빨라지고, 오르막에서 ${25 * l}% 덜 느려져요` },
+  { id: 'slope', name: '비탈길', desc: (l) => `내리막에서 +${25 * l}% 더 빨리 굴러요` },
 ];
-// stuck things leave gaps, so the ball gains more volume than the things themselves; less so once it is huge
-const grow = () => 6 / (1 + S.r / 30);
-const DRAIN = 0.056;           // energy lost per second
+// stuck things leave gaps, so the ball gains more volume than the things themselves; less so as it grows,
+// so big buildings stay something to dodge
+const grow = () => 6 / (1 + S.r / 6 + (S.r / 10) ** 3);
+const DOWN = 11;               // pull down the slope (m/s²)
+// stopped = has not gained 4 m down the course for this long (bouncing in place against a wall counts too)
+const STALL_D = 4, STALL_T = 1.6;
 const volOf = (r) => (4 / 3) * Math.PI * r ** 3;
 const radOf = (v) => Math.cbrt((3 * v) / (4 * Math.PI));
+const ratio = () => 0.5 + 0.05 * S.lv.sticky;
 
 const S = {};
 const tweens = [];
 const flying = [];
+const STUCKP = [];
 let token = 0;
 function resetGame() {
   Object.assign(S, {
-    mode: 'start', t: 0, r: 0.5, V: volOf(0.5), maxD: 1, x: START[0], z: START[1], vx: 0, vz: 0, E: 1,
-    picks: 0, biggest: null, grade: 0, cardIx: 0, lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
-    camYaw: 0, camDist: 7, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, pendingCards: 0, boost: 0, boostCd: 0, boostReq: false,
+    mode: 'start', t: 0, r: 0.5, V: volOf(0.5), maxD: 1, x: 0, z: START_Z, vx: 0, vz: 3,
+    picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
+    lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
+    camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, pendingCards: 0,
+    boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0,
   });
-  // face the camera toward the campus middle at the start
-  S.camYaw = Math.atan2(CB.cx - S.x, CB.cz - S.z);
 }
+const score = () => S.picks + S.arrived * 100;
+// the score box pops every 100 points, every 1,000 from 10,000, every 10,000 from 100,000, and so on
+const pulseStep = (sc) => (sc < 10000 ? 100 : 10 ** (Math.floor(Math.log10(sc)) - 1));
 
 // ============ input
 const input = { x: 0, y: 0, active: false, ox: 0, oy: 0, id: null, upT: -1e9, ux: 0, uy: 0 };
@@ -847,41 +895,56 @@ function sfxEnd() {
     o.connect(g).connect(master); o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.7);
   });
 }
-const vib = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+const vib = (ms) => { try { if (navigator.vibrate && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate(ms); } catch {} };
+function sfxArrive() {
+  if (!AC) return;
+  const t = AC.currentTime;
+  [659.25, 783.99, 987.77, 1318.5].forEach((f, i) => {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'triangle'; o.frequency.value = f;
+    env(g, t + i * 0.07, 0.12, 0.4);
+    o.connect(g).connect(master); o.start(t + i * 0.07); o.stop(t + i * 0.07 + 0.45);
+  });
+}
 
-// ============ HUD helpers
-let toastTimer = 0, gradeTimer = 0;
+// ============ HUD
+let toastTimer = 0, bannerTimer = 0;
 function toast(msg, ms = 1600) {
   const el = $('toast'); el.textContent = msg; el.classList.add('on');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms);
 }
-function gradeUp(name) {
-  const el = $('gradeup'); el.innerHTML = `${name}!<small>이제 ${name.replace('급', '')}도 붙어요</small>`;
-  el.classList.add('on'); clearTimeout(gradeTimer); gradeTimer = setTimeout(() => el.classList.remove('on'), 1500);
+function banner(html, ms = 1500) {
+  const el = $('banner'); el.innerHTML = html; el.classList.add('on');
+  clearTimeout(bannerTimer); bannerTimer = setTimeout(() => el.classList.remove('on'), ms);
+}
+function pulseScore() {
+  const el = $('scorebox');
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
 }
 const fmtD = (d) => (d < 10 ? d.toFixed(2) : d < 100 ? d.toFixed(1) : Math.round(d).toString());
 const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 let hudCache = '';
 function updateHud() {
-  const d = 2 * S.r, g = GRADES[S.grade], nx = GRADES[S.grade + 1];
-  const key = `${fmtD(d)}|${S.grade}|${Math.floor(S.t)}|${S.picks}|${nx ? (nx.d - d).toFixed(1) : ''}`;
+  const d = 2 * S.r, sc = score(), nx = COURSE[S.nextArr];
+  const dist = nx ? Math.max(0, Math.round(nx.zs + 5 - S.z)) : 0;
+  const key = `${sc}|${fmtD(d)}|${S.grade}|${Math.floor(S.t)}|${S.arrived}|${dist}`;
   if (key !== hudCache) {
     hudCache = key;
-    $('dia').innerHTML = `${fmtD(d)}<small>m</small>`;
-    $('grade').textContent = g.n;
-    $('next').textContent = nx ? `${nx.n}까지 ${Math.max(0, nx.d - d).toFixed(1)} m` : '가장 높은 등급';
+    $('score').textContent = sc.toLocaleString();
+    $('dia').innerHTML = `지름 ${fmtD(d)} m · <b>${GRADES[S.grade].n}</b>`;
     $('time').textContent = fmtT(S.t);
-    $('count').textContent = `${S.picks.toLocaleString()}개`;
+    $('arr').textContent = `도착 ${S.arrived}곳`;
+    $('next').textContent = nx ? `다음 ${nx.label} · ${dist.toLocaleString()} m` : '마지막 대학까지 왔어요';
   }
   $('dash').classList.toggle('cool', S.boostCd > 0);
-  const bar = $('ebar');
-  bar.firstElementChild.style.transform = `scaleX(${clamp(S.E, 0, 1)})`;
-  bar.classList.toggle('low', S.E < 0.25);
+  const sp = Math.hypot(S.vx, S.vz), bar = $('sbar');
+  bar.firstElementChild.style.transform = `scaleX(${clamp(sp / 45, 0.02, 1)})`;
+  bar.classList.toggle('low', S.stall > 0.2);
+  $('warn').classList.toggle('on', S.stall > 0.35 && S.mode === 'play');
 }
 
 // ============ picking up
-const _inv = new THREE.Quaternion(), _lp = new THREE.Vector3(), _n = new THREE.Vector3(), _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qt = new THREE.Quaternion();
-const ratio = () => 0.5 + 0.05 * S.lv.sticky;
+const _inv = new THREE.Quaternion(), _n = new THREE.Vector3(), _qt = new THREE.Quaternion(), _X = new THREE.Vector3(1, 0, 0);
 function stickTransform(wx, wy, wz, worldQ, outFrom, outQa, outTo, outQb, depth) {
   _inv.copy(ballSpin.quaternion).invert();
   outFrom.set(wx - ballRoot.position.x, wy - ballRoot.position.y, wz - ballRoot.position.z).applyQuaternion(_inv);
@@ -892,27 +955,24 @@ function stickTransform(wx, wy, wz, worldQ, outFrom, outQa, outTo, outQb, depth)
   outQa.copy(_inv).multiply(worldQ);
   // stand the thing up on the surface, spun and tilted a little
   outQb.setFromUnitVectors(UP, _n).multiply(_qt.setFromAxisAngle(UP, rand(0, 6.28)));
-  outQb.multiply(_qt.setFromAxisAngle(new THREE.Vector3(1, 0, 0), rand(-0.5, 0.5)));
+  outQb.multiply(_qt.setFromAxisAngle(_X, rand(-0.5, 0.5)));
 }
-function gain(dv) {
+function addVolume(dv, s, name) {
   const f = dv / S.V;
-  S.E = Math.min(1, S.E + 0.02 + Math.min(0.5, 1.5 * f));
-  return f;
+  S.V += dv; S.r = radOf(S.V); S.picks++;
+  if (!S.biggest || s > S.biggest.s) S.biggest = { s, name };
+  if (f > 0.1) { S.hitstop = Math.max(S.hitstop, 0.04); vib(12); }
 }
 function pickObj(o) {
   if (!o.alive) return;
   if (o.k === 'piece') { stickPiece(o); return; }
   o.alive = false;
   hideObj(o);
-  const dv = o.vol * grow();
-  const f = gain(dv);
-  S.V += dv; S.r = radOf(S.V); S.picks++;
-  if (!S.biggest || o.s > S.biggest.s) S.biggest = { s: o.s, name: KINDS[o.k].name };
+  addVolume(o.vol * grow(), o.s, KINDS[o.k].name);
   const st = STUCK[o.k], slot = st.ring++ % st.cap, tk = ++token;
   st.mesh.count = Math.min(st.cap, st.ring);
   st.owner[slot] = tk;
-  st.mesh.setColorAt(slot, _c.set(o.color || 0xffffff));
-  if (st.mesh.instanceColor) st.mesh.instanceColor.needsUpdate = true;
+  st.mesh.setColorAt(slot, _c.set(o.color || 0xffffff)); st.mesh.userData.colorDirty = true;
   const tw = { st, slot, tk, sc: o.sc, t: 0, dur: 0.22, from: new THREE.Vector3(), qa: new THREE.Quaternion(), to: new THREE.Vector3(), qb: new THREE.Quaternion() };
   _q.setFromAxisAngle(UP, o.yaw);
   stickTransform(o.x, o.y, o.z, _q, tw.from, tw.qa, tw.to, tw.qb, 0.84);
@@ -920,56 +980,99 @@ function pickObj(o) {
   S.recent.push({ k: o.k, slot, tk, s: o.s, vol: o.vol, sc: o.sc, color: o.color });
   if (S.recent.length > 40) S.recent.shift();
   sfxPop(o.s);
-  if (f > 0.1) { S.hitstop = 0.05; vib(12); }
-  if (o.s > S.r * 0.9) S.lump = Math.max(S.lump || 0, clamp((o.s * 0.5) / S.r, 0, 0.4));
+  if (o.s > S.r * 0.9) S.lump = Math.max(S.lump, clamp((o.s * 0.5) / S.r, 0, 0.4));
 }
-// blocks stuck to the ball keep a transform relative to it; the oldest ones (buried deepest) are dropped from view
-const STUCKP = [];
+function updateTweens(dt) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    tw.t += dt;
+    const a = Math.min(1, tw.t / tw.dur), e = 1 - (1 - a) ** 3;
+    if (tw.st.owner[tw.slot] !== tw.tk) { tweens.splice(i, 1); continue; }
+    _p.lerpVectors(tw.from, tw.to, e);
+    _q.slerpQuaternions(tw.qa, tw.qb, e);
+    _m.compose(_p, _q, _s.setScalar(tw.sc));
+    tw.st.mesh.setMatrixAt(tw.slot, _m); dirty(tw.st.mesh, tw.slot);
+    if (a >= 1) tweens.splice(i, 1);
+  }
+}
+// a block that sticks moves from the world mesh into the ball's own block mesh
 function stickPiece(p) {
-  if (p.state === 'stuck' || p.state === 'gone') return;
+  if (p.state === 'stuck') return;
+  const wasFlying = p.state === 'loose' && !p.alive;
   p.state = 'stuck'; p.alive = false;
-  const dv = p.vol * grow(), f = gain(dv);
-  S.V += dv; S.r = radOf(S.V); S.picks++;
-  if (!S.biggest || p.s > S.biggest.s) S.biggest = { s: p.s, name: `${p.b.name} 조각` };
-  const e = { p, t: 0, dur: 0.3, from: new THREE.Vector3(), qa: new THREE.Quaternion(), to: new THREE.Vector3(), qb: new THREE.Quaternion() };
+  if (wasFlying) { const i = flying.indexOf(p); if (i >= 0) flying.splice(i, 1); }
+  addVolume(p.vol * grow(), p.s, `${p.b.name} 조각`);
+  const slot = S.spRing++ % SPCAP;
+  const old = STUCKP[slot];
+  const e = { p, slot, t: 0, dur: 0.3, from: new THREE.Vector3(), qa: new THREE.Quaternion(), to: new THREE.Vector3(), qb: new THREE.Quaternion() };
   stickTransform(p.x, p.y, p.z, p.q, e.from, e.qa, e.to, e.qb, 0.8);
   e.pos = e.from.clone(); e.q = e.qa.clone(); e.n = e.to.clone().normalize();
-  STUCKP.push(e);
-  if (STUCKP.length > 260) { const old = STUCKP.shift(); old.p.state = 'gone'; hidePiece(old.p); }
+  STUCKP[slot] = e;
+  writeBlock(SPM, slot, p);
+  freePiece(p);
   sfxPop(p.s);
-  if (f > 0.1) S.hitstop = Math.max(S.hitstop, 0.04);
 }
 function updateStuckPieces(dt) {
-  if (!STUCKP.length) return;
-  ballRoot.updateMatrixWorld(true);
   for (const e of STUCKP) {
-    // the newest blocks ride the surface as the ball grows; older ones drop out of view when the list is full
+    if (!e) continue;
+    // the newest blocks ride the surface as the ball grows; older ones get overwritten when the ring wraps
     e.to.copy(e.n).multiplyScalar(S.r * 0.86);
     if (e.t < e.dur) {
       e.t = Math.min(e.dur, e.t + dt);
       const k = 1 - (1 - e.t / e.dur) ** 3;
       e.pos.lerpVectors(e.from, e.to, k); e.q.slerpQuaternions(e.qa, e.qb, k);
     } else e.pos.copy(e.to);
-    _m.compose(e.pos, e.q, _s.set(e.p.sx, e.p.sy, e.p.sz)).premultiply(ballSpin.matrixWorld);
-    PM.setMatrixAt(e.p.slot, _m);
+    _m.compose(e.pos, e.q, _s.set(e.p.sx, e.p.sy, e.p.sz));
+    SPM.setMatrixAt(e.slot, _m); dirty(SPM, e.slot);
   }
-  pmDirty = true;
 }
-function shatter(b) {
-  if (b.mode !== 'mesh') return;
-  b.mode = 'pieces';
-  scene.remove(b.mesh);
-  for (const p of b.pieces) if (p.state === 'intact') drawPiece(p);
+function launch(k, x, y, z, vx, vy, vz, sc, color) {
+  const c = COURSE[segIndexAt(z)];
+  if (!c.loaded) return;
+  const o = { k, seg: c, x, y, z, yaw: rand(0, 6.28), sc, s: KINDS[k].s * sc, vol: KINDS[k].f * (KINDS[k].s * sc) ** 3, cr: KINDS[k].cr * sc, color, alive: false, slot: -1, vx, vy, vz, spin: rand(-6, 6) };
+  if (!showObj(o)) return;
+  c.objs.push(o);
+  flying.push(o);
 }
+function updateFlying(dt) {
+  for (let i = flying.length - 1; i >= 0; i--) {
+    const o = flying[i];
+    o.vy -= 22 * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.z += o.vz * dt;
+    if (o.k === 'piece') o.q.premultiply(_qt.setFromAxisAngle(o.ax, o.spin * dt)); else o.yaw += o.spin * dt;
+    const gy = groundY(o.x, o.z) + (o.k === 'piece' ? o.sy * 0.3 : 0);
+    if (o.y <= gy && o.vy < 0) { o.y = gy; o.alive = true; flying.splice(i, 1); gridAdd(o); }
+    showObj(o);
+  }
+}
+function knockObj(o, ux, uz, speed) {
+  o.alive = false;
+  o.vx = ux * speed * rand(1.1, 1.6) + rand(-2, 2); o.vz = uz * speed * rand(1.1, 1.6) + rand(-2, 2);
+  o.vy = 4 + speed * rand(0.3, 0.6); o.spin = o.k === 'piece' ? rand(-4, 4) : rand(-8, 8); o.y += 0.05;
+  flying.push(o);
+  sfxThud(speed * 0.4); S.shake = Math.max(S.shake, 0.2); vib(10);
+}
+function dropStuck(n) {
+  // a hard hit knocks a few of the latest small things back off the ball
+  let dropped = 0;
+  for (let i = S.recent.length - 1; i >= 0 && dropped < n; i--) {
+    const it = S.recent[i], st = STUCK[it.k];
+    if (it.s > S.r * 0.6 || st.owner[it.slot] !== it.tk) continue;
+    st.owner[it.slot] = 0;
+    st.mesh.setMatrixAt(it.slot, ZERO); dirty(st.mesh, it.slot);
+    S.recent.splice(i, 1);
+    S.V = Math.max(volOf(0.5), S.V - it.vol * grow()); S.r = radOf(S.V); S.picks = Math.max(0, S.picks - 1);
+    const a = rand(0, 6.28);
+    launch(it.k, S.x + Math.cos(a) * S.r, ballRoot.position.y + S.r * 0.5, S.z + Math.sin(a) * S.r, Math.cos(a) * rand(3, 7), rand(5, 9), Math.sin(a) * rand(3, 7), it.sc, it.color);
+    dropped++;
+  }
+}
+
+// ============ breaking buildings
 function loosen(p, vx, vy, vz) {
   p.state = 'loose'; p.alive = false;
   p.vx = vx; p.vy = vy; p.vz = vz; p.spin = rand(-3, 3);
   p.ax = new THREE.Vector3(rand(-1, 1), rand(-0.3, 0.3), rand(-1, 1)).normalize();
   flying.push(p);
-}
-function checkBuilding(b) {
-  if (b.alive && !b.pieces.some((p) => p.state === 'intact')) b.alive = false;
-  if (!b.alive && BLD.every((x) => !x.alive)) { S.win = true; S.E = 0; }
 }
 // blocks with nothing left under them fall
 function collapse(b) {
@@ -980,11 +1083,10 @@ function collapse(b) {
       if (gone) loosen(p, rand(-1.5, 1.5), rand(-1, 0.5), rand(-1.5, 1.5));
     }
   }
-  checkBuilding(b);
+  if (!b.pieces.some((p) => p.state === 'intact')) b.alive = false;
 }
 // break the blocks around a contact point; with eat, the ones small enough stick straight to the ball
 function hitBuilding(b, px, pz, power, eat) {
-  shatter(b);
   const r = S.r, rad = r * 1.05 + 1 + power * 0.12, top = ballRoot.position.y + r * (eat ? 1 : 0.8), lim = ratio() * 2 * r;
   let n = 0;
   for (const p of b.pieces) {
@@ -1000,22 +1102,14 @@ function hitBuilding(b, px, pz, power, eat) {
   return n;
 }
 function swallowBuilding(b) {
-  shatter(b);
   for (const p of b.pieces) if (p.state === 'intact') stickPiece(p);
+  b.alive = false;
   const last = b.name.charCodeAt(b.name.length - 1), batchim = last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 > 0;
   toast(b.name === '건물' ? '건물 하나를 통째로 붙였어요!' : `${b.name}${batchim ? '을' : '를'} 통째로 붙였어요!`);
   sfxBig(); vib(40);
   S.hitstop = 0.09; S.shake = Math.max(S.shake, 0.6);
-  checkBuilding(b);
 }
 // where the ball touches a building: [contact x, z, outward normal x, z], or null
-function contactPoly(b, R) {
-  const inside = inPoly(S.x, S.z, b.poly), [qx, qz, d] = closestOnPoly(S.x, S.z, b.poly);
-  if (!inside && d >= R) return null;
-  let nx = inside ? qx - S.x : S.x - qx, nz = inside ? qz - S.z : S.z - qz;
-  const L = Math.hypot(nx, nz) || 1;
-  return [qx, qz, nx / L, nz / L];
-}
 function contactCols(b, R) {
   const c = b.cos, s = b.sin;
   let best = null, bd = Infinity;
@@ -1035,70 +1129,11 @@ function contactCols(b, R) {
   }
   return best;
 }
-function updateTweens(dt) {
-  for (let i = tweens.length - 1; i >= 0; i--) {
-    const tw = tweens[i];
-    tw.t += dt;
-    const a = Math.min(1, tw.t / tw.dur), e = 1 - (1 - a) ** 3;
-    _p.lerpVectors(tw.from, tw.to, e);
-    _q.slerpQuaternions(tw.qa, tw.qb, e);
-    if (tw.mesh) { tw.mesh.position.copy(_p); tw.mesh.quaternion.copy(_q); }
-    else if (tw.st.owner[tw.slot] === tw.tk) {
-      _m.compose(_p, _q, _s.setScalar(tw.sc));
-      tw.st.mesh.setMatrixAt(tw.slot, _m);
-      tw.st.mesh.instanceMatrix.needsUpdate = true;
-    } else { tweens.splice(i, 1); continue; }
-    if (a >= 1) tweens.splice(i, 1);
-  }
-}
-function launch(k, x, y, z, vx, vy, vz, sc, color) {
-  const o = { k, x, y, z, yaw: rand(0, 6.28), sc, s: KINDS[k].s * sc, vol: KINDS[k].f * (KINDS[k].s * sc) ** 3, cr: KINDS[k].cr * sc, color, alive: false, slot: -1, vx, vy, vz, spin: rand(-6, 6) };
-  if (!showObj(o)) return;
-  flying.push(o);
-}
-function updateFlying(dt) {
-  for (let i = flying.length - 1; i >= 0; i--) {
-    const o = flying[i];
-    o.vy -= 22 * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.z += o.vz * dt;
-    if (o.k === 'piece') o.q.premultiply(_qt.setFromAxisAngle(o.ax, o.spin * dt)); else o.yaw += o.spin * dt;
-    o.x = clamp(o.x, T.x0 + 2, X1 - 2); o.z = clamp(o.z, T.z0 + 2, Z1 - 2);
-    const gy = groundY(o.x, o.z) + (o.k === 'piece' ? o.sy * 0.3 : 0);
-    if (o.y <= gy && o.vy < 0) {
-      o.y = gy; o.alive = true; flying.splice(i, 1); gridAdd(o);
-    }
-    showObj(o);
-  }
-}
-function knockObj(o, ux, uz, speed) {
-  o.alive = false;
-  o.vx = ux * speed * rand(1.1, 1.6) + rand(-2, 2); o.vz = uz * speed * rand(1.1, 1.6) + rand(-2, 2);
-  o.vy = 4 + speed * rand(0.3, 0.6); o.spin = rand(-8, 8); o.y += 0.05;
-  if (o.k === 'piece') o.spin = rand(-4, 4);
-  flying.push(o);
-  sfxThud(speed * 0.4); S.shake = Math.max(S.shake, 0.2); vib(10);
-}
-function dropStuck(n) {
-  // a hard hit knocks a few of the latest small things back off the ball
-  let dropped = 0;
-  for (let i = S.recent.length - 1; i >= 0 && dropped < n; i--) {
-    const it = S.recent[i];
-    if (it.s > S.r * 0.6) continue;
-    const st = STUCK[it.k];
-    if (st.owner[it.slot] !== it.tk) continue;
-    st.owner[it.slot] = 0;
-    st.mesh.setMatrixAt(it.slot, ZERO); st.mesh.instanceMatrix.needsUpdate = true;
-    S.recent.splice(i, 1);
-    S.V = Math.max(volOf(0.5), S.V - it.vol * grow()); S.r = radOf(S.V); S.picks = Math.max(0, S.picks - 1);
-    const a = rand(0, 6.28);
-    launch(it.k, S.x + Math.cos(a) * S.r, ballRoot.position.y + S.r * 0.5, S.z + Math.sin(a) * S.r, Math.cos(a) * rand(3, 7), rand(5, 9), Math.sin(a) * rand(3, 7), it.sc, it.color);
-    dropped++;
-  }
-}
 
 // ============ cards
 function openCards() {
   const opts = CARDS.filter((c) => S.lv[c.id] < 3).sort(() => Math.random() - 0.5).slice(0, 3);
-  if (!opts.length) return;
+  if (!opts.length) { S.pendingCards = 0; return; }
   S.mode = 'card';
   input.active = false; joy.hidden = true;
   const list = $('cardlist');
@@ -1111,7 +1146,6 @@ function openCards() {
     list.appendChild(b);
   });
   $('cards').hidden = false;
-  if (BOT.on) setTimeout(() => S.mode === 'card' && chooseCard(opts[0].id), 30);
 }
 function chooseCard(id) {
   S.lv[id]++;
@@ -1123,36 +1157,39 @@ function chooseCard(id) {
 }
 
 // ============ update
-const BOT = { on: QS.has('bot'), target: null, retarget: 0, stuckT: 0, wander: 0, wx: 0, wz: 0 };
+const BOT = { on: QS.has('bot'), t: 0, tx: 0 };
 function botInput(dt) {
-  BOT.retarget -= dt;
-  if (BOT.retarget <= 0 || (BOT.target && !BOT.target.alive)) {
-    BOT.retarget = 0.4;
-    let best = null, bs = 0;
-    const lim = ratio() * 2 * S.r, R = 40 + S.r * 6;
-    gridEach(S.x, S.z, R, (o) => {
-      if (o.s > lim) return;
-      const d = Math.hypot(o.x - S.x, o.z - S.z), sc = o.vol / (d + 2) ** 2;
-      if (sc > bs) { bs = sc; best = o; }
+  // aim for the richest pickings ahead, and slide past buildings too big to bite
+  BOT.t -= dt;
+  const lim = ratio() * 2 * S.r, hw = halfWidthAt(S.z) - S.r - 2;
+  if (BOT.t <= 0) {
+    BOT.t = 0.25;
+    let best = 0, bx = S.x;
+    gridEach(S.x, S.z + 25 + S.r * 3, 30 + S.r * 3, (o) => {
+      if (o.s > lim || o.z < S.z) return;
+      const d = Math.hypot(o.x - S.x, o.z - S.z), sc = o.vol / (d + 3) ** 2;
+      if (sc > best) { best = sc; bx = o.x; }
     });
-    if (!best) {
-      for (const b of BLD) if (b.alive && b.minS <= lim) { const d = Math.hypot(b.cx - S.x, b.cz - S.z), sc = b.vol / (d + 2) ** 2; if (sc > bs) { bs = sc; best = { x: b.cx, z: b.cz, alive: true }; } }
+    BOT.tx = bx;
+    for (const c of LOADED) for (const b of c.blds) {
+      if (!b.alive || b.minS <= lim || b.z0 < S.z - 2 || b.z0 > S.z + 25 + S.r * 4) continue;
+      if (BOT.tx > b.x0 - S.r * 1.3 && BOT.tx < b.x1 + S.r * 1.3) BOT.tx = Math.abs(S.x - b.x0) < Math.abs(S.x - b.x1) ? b.x0 - S.r * 1.6 : b.x1 + S.r * 1.6;
     }
-    BOT.target = best;
+    BOT.tx = clamp(BOT.tx, -hw, hw);
+    if (S.stall > 0.4 && S.boostCd <= 0) S.boostReq = true;
   }
-  const sp = Math.hypot(S.vx, S.vz);
-  BOT.stuckT = sp < 0.6 ? BOT.stuckT + dt : 0;
-  if (BOT.stuckT > 0.8) { BOT.wander = 0.9; const a = rand(0, 6.28); BOT.wx = Math.cos(a); BOT.wz = Math.sin(a); BOT.stuckT = 0; }
-  if (BOT.wander > 0) { BOT.wander -= dt; return [BOT.wx, BOT.wz]; }
-  const t = BOT.target || { x: CB.cx, z: CB.cz };
-  const dx = t.x - S.x, dz = t.z - S.z, L = Math.hypot(dx, dz) || 1;
-  if (S.boostCd <= 0 && L > S.r * 4 + 6) S.boostReq = true;
-  return [dx / L, dz / L];
+  const dx = BOT.tx - S.x, L = Math.hypot(dx, 12);
+  return [dx / L, 12 / L];
+}
+function arrive(c) {
+  S.arrived++; S.last = c.label;
+  banner(`${c.label} 도착!<small>+100</small>`);
+  sfxArrive(); vib([20, 30, 20]);
+  if (S.arrived % 3 === 0) S.pendingCards++;
 }
 function step(dt) {
   S.t += dt;
   const r = S.r, lv = S.lv;
-  // input → push direction in the ground plane
   let ax = 0, az = 0, mag = 0;
   const fx = Math.sin(S.camYaw), fz = Math.cos(S.camYaw), rx = -fz, rz = fx;
   if (BOT.on) { [ax, az] = botInput(dt); mag = 1; }
@@ -1166,15 +1203,14 @@ function step(dt) {
     if (L > 6) { mag = Math.min(1, L / 60); ax = (fx * -iy + rx * ix) / L; az = (fz * -iy + rz * ix) / L; }
   }
   const dash = 1 + 0.15 * lv.dash;
-  // dash: a burst forward, then a short cooldown
   S.boost = Math.max(0, S.boost - dt); S.boostCd = Math.max(0, S.boostCd - dt);
-  let vmax = (7 + 3.6 * Math.pow(r, 0.85)) * dash;
-  const acc = (18 + 5 * Math.pow(r, 0.85)) * dash;
+  let vmax = (15 + 3.4 * Math.pow(r, 0.75)) * dash;
+  const acc = (20 + 4 * Math.pow(r, 0.8)) * dash;
   if (S.boostReq) {
     S.boostReq = false;
     if (S.boostCd <= 0) {
       let bx = ax, bz = az;
-      if (!mag) { const v = Math.hypot(S.vx, S.vz); [bx, bz] = v > 0.5 ? [S.vx / v, S.vz / v] : [fx, fz]; }
+      if (!mag) { const v = Math.hypot(S.vx, S.vz); [bx, bz] = v > 0.5 ? [S.vx / v, S.vz / v] : [0, 1]; }
       S.boost = 0.7; S.boostCd = 2;
       S.vx = bx * vmax * 1.6; S.vz = bz * vmax * 1.6;
       S.shake = Math.max(S.shake, 0.3); sfxBoost(); vib(20);
@@ -1187,40 +1223,35 @@ function step(dt) {
     const along = S.vx * ax + S.vz * az, px = S.vx - ax * along, pz = S.vz - az * along, k = Math.exp(-3.5 * mag * dt);
     S.vx = ax * along + px * k; S.vz = az * along + pz * k;
   }
-  // slope
-  const gx = (groundY(S.x + 1, S.z) - groundY(S.x - 1, S.z)) / 2, gz = (groundY(S.x, S.z + 1) - groundY(S.x, S.z - 1)) / 2;
-  let sm = 1;
-  if (lv.slope) sm = gx * S.vx + gz * S.vz > 0 ? 1 - 0.25 * lv.slope : 1 + 0.35 * lv.slope;
-  S.vx -= gx * 9.8 * 0.55 * sm * dt; S.vz -= gz * 9.8 * 0.55 * sm * dt;
-  // rolling resistance, and a soft speed cap
-  const fr = Math.exp(-(mag > 0 ? 0.25 : 0.7) * dt);
+  S.vz += DOWN * (1 + 0.25 * lv.slope) * dt;
+  const fr = Math.exp(-(mag > 0 ? 0.2 : 0.35) * dt);
   S.vx *= fr; S.vz *= fr;
   let sp = Math.hypot(S.vx, S.vz);
-  if (sp > vmax) { const k = vmax / sp + (1 - vmax / sp) * Math.exp(-4 * dt); S.vx *= k; S.vz *= k; sp *= k; }
+  if (sp > vmax) { const k = vmax / sp + (1 - vmax / sp) * Math.exp(-4 * dt); S.vx *= k; S.vz *= k; }
   S.x += S.vx * dt; S.z += S.vz * dt;
-  // edges of the map
-  const m = Math.min(r, 30) + 3;
-  if (S.x < T.x0 + m) { S.x = T.x0 + m; S.vx = Math.abs(S.vx) * 0.4; }
-  if (S.x > X1 - m) { S.x = X1 - m; S.vx = -Math.abs(S.vx) * 0.4; }
-  if (S.z < T.z0 + m) { S.z = T.z0 + m; S.vz = Math.abs(S.vz) * 0.4; }
-  if (S.z > Z1 - m) { S.z = Z1 - m; S.vz = -Math.abs(S.vz) * 0.4; }
+  // the sides of the course
+  const hw = halfWidthAt(S.z) - Math.min(r, 25) * 0.9;
+  if (S.x < -hw) { S.x = -hw; S.vx = Math.abs(S.vx) * 0.4; }
+  if (S.x > hw) { S.x = hw; S.vx = -Math.abs(S.vx) * 0.4; }
+  if (S.z < START_Z - 20) { S.z = START_Z - 20; S.vz = Math.abs(S.vz); }
 
   const lim = ratio() * 2 * r;
   // buildings: swallow whole, bite off blocks, smash blocks loose, or bounce
-  for (const b of BLD) {
+  for (const c of LOADED) for (const b of c.blds) {
     if (!b.alive) continue;
     b.hitCd = Math.max(0, b.hitCd - dt);
     const R = r * 0.92;
     if (S.x < b.x0 - R || S.x > b.x1 + R || S.z < b.z0 - R || S.z > b.z1 + R) continue;
-    const ct = b.mode === 'mesh' ? contactPoly(b, R) : contactCols(b, R);
+    const ct = contactCols(b, R);
     if (!ct) continue;
     if (b.s <= lim) { swallowBuilding(b); continue; }
     const [qx, qz, nx, nz] = ct;
     const vn = S.vx * nx + S.vz * nz, hit = Math.max(0, -vn);
     if (b.minS <= lim) {
-      if (b.hitCd <= 0) {
-        b.hitCd = 0.08;
-        if (hitBuilding(b, qx, qz, Math.max(hit, 4), true)) { S.vx *= 0.96; S.vz *= 0.96; S.shake = Math.max(S.shake, 0.25); continue; }
+      // biting needs some speed into the wall and costs speed, so a thick building can still pin the ball
+      if (b.hitCd <= 0 && (hit > 3 || S.boost > 0)) {
+        b.hitCd = 0.1;
+        if (hitBuilding(b, qx, qz, Math.max(hit, 4), true)) { S.vx *= 0.75; S.vz *= 0.75; S.shake = Math.max(S.shake, 0.25); continue; }
       }
     } else if (b.hitCd <= 0 && (hit > 5 || (S.boost > 0 && hit > 2))) {
       b.hitCd = 0.3;
@@ -1242,19 +1273,14 @@ function step(dt) {
       if (hit > 14 && S.boost <= 0 && S.picks > 8) dropStuck(Math.min(3, Math.floor(hit / 7)));
     }
   }
-  // small things: pick up or bounce
-  const reach = r * 0.95 + r * 0.35 * lv.magnet;
+  // small things: pick up, bowl over, or bounce
+  const reach = r * 1.15 + 0.7 + r * 0.35 * lv.magnet;
   gridEach(S.x, S.z, reach + 6, (o) => {
     const dx = o.x - S.x, dz = o.z - S.z, d = Math.hypot(dx, dz);
-    if (o.s <= lim) {
-      if (d < reach + o.s * 0.35) pickObj(o);
-      return;
-    }
+    if (o.s <= lim) { if (d < reach + o.s * 0.35) pickObj(o); return; }
     const R = r * 0.92 + o.cr;
     if (d >= R || d < 1e-4) return;
-    const nx = -dx / d, nz = -dz / d;
-    const vn = S.vx * nx + S.vz * nz;
-    // things smaller than the ball get bowled over when it comes in fast
+    const nx = -dx / d, nz = -dz / d, vn = S.vx * nx + S.vz * nz;
     if (vn < -2.5 && o.s <= 2 * r * 1.15) { knockObj(o, -nx, -nz, -vn); S.vx *= 0.93; S.vz *= 0.93; return; }
     S.x = o.x + nx * R; S.z = o.z + nz * R;
     if (vn < 0) {
@@ -1262,7 +1288,6 @@ function step(dt) {
       if (-vn > 3) { sfxThud(-vn * 0.5); S.shake = Math.max(S.shake, 0.15); }
     }
   });
-  // twin ball circles around and collects for the main ball
   if (lv.twin) {
     S.twinA += dt * 1.6;
     const rc = r * (0.22 + 0.08 * lv.twin), dist = r * 1.9 + 1.5;
@@ -1275,19 +1300,34 @@ function step(dt) {
     gridEach(tx, tz, rc + 3, (o) => { if (o.s <= tl && Math.hypot(o.x - tx, o.z - tz) < rc + o.s * 0.4) pickObj(o); });
   }
   updateFlying(dt);
-  // energy
-  if (S.t > 3) S.E -= DRAIN * dt;
-  // grades and cards
+  // arrivals, score pulse, stalling
+  while (S.nextArr < COURSE.length && S.z >= COURSE[S.nextArr].zs + 5) arrive(COURSE[S.nextArr++]);
+  const sc = score();
+  if (sc >= S.nextPulse && S.t - S.pulseT > 0.3) {
+    S.pulseT = S.t; pulseScore();
+    if (S.pulseLog.length < 200) S.pulseLog.push(sc);
+    const st = pulseStep(sc);
+    S.nextPulse = (Math.floor(sc / st) + 1) * st;
+  }
+  sp = Math.hypot(S.vx, S.vz);
+  if (S.z > S.progZ + STALL_D || S.t < 3) { S.progZ = Math.max(S.progZ, S.z); S.stall = 0; } else S.stall += dt;
+  S.streamT -= dt;
+  if (S.streamT <= 0) { S.streamT = 0.25; stream(); }
   const dnow = 2 * S.r;
   if (dnow > S.maxD) {
     S.maxD = dnow;
     while (S.grade + 1 < GRADES.length && S.maxD >= GRADES[S.grade + 1].d) {
-      S.grade++; gradeUp(GRADES[S.grade].n); sfxLevel(); vib([30, 40, 30]); S.shake = Math.max(S.shake, 0.5);
+      S.grade++; toast(`${GRADES[S.grade].n}! 이제 ${GRADES[S.grade].n.replace('급', '')}도 붙어요`); sfxLevel(); vib([30, 40, 30]); S.shake = Math.max(S.shake, 0.5);
     }
     while (S.cardIx < CARD_AT.length && S.maxD >= CARD_AT[S.cardIx]) { S.cardIx++; S.pendingCards++; }
   }
-  if (S.E <= 0) { S.E = 0; S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true; }
-  else if (S.pendingCards > 0 && S.mode === 'play') openCards();
+  if (S.stall >= STALL_T || S.nextArr >= COURSE.length && S.z > COURSE[COURSE.length - 1].ze) {
+    S.win = S.stall < STALL_T;
+    S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true;
+  } else if (S.pendingCards > 0 && S.mode === 'play') {
+    if (BOT.on) { while (S.pendingCards > 0) { const c = CARDS.find((x) => S.lv[x.id] < 3); if (!c) { S.pendingCards = 0; break; } S.lv[c.id]++; S.pendingCards--; } }
+    else openCards();
+  }
 }
 
 // ============ ball and camera visuals
@@ -1299,8 +1339,8 @@ function placeBall(dt) {
     ballSpin.quaternion.premultiply(_qt.setFromAxisAngle(_axis, (sp * dt) / r));
     S.roll += (sp * dt) / r;
   }
-  S.lump = Math.max(0, (S.lump || 0) - dt * 0.02);
-  const wob = (S.lump || 0) * r * 0.3 * Math.abs(Math.sin(S.roll));
+  S.lump = Math.max(0, S.lump - dt * 0.02);
+  const wob = S.lump * r * 0.3 * Math.abs(Math.sin(S.roll));
   const gy = groundY(S.x, S.z);
   ballRoot.position.set(S.x, gy + r * 0.9 + wob, S.z);
   core.scale.setScalar(r * 0.88);
@@ -1309,48 +1349,49 @@ function placeBall(dt) {
 }
 function placeCamera(dt, orbit = 0) {
   const sp = Math.hypot(S.vx, S.vz);
-  if (sp > 1.2 && S.mode === 'play') {
-    let d = Math.atan2(S.vx, S.vz) - S.camYaw;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    S.camYaw += d * Math.min(1, dt * 3.2 * Math.min(1, sp / 5));
-  }
-  S.camYaw += orbit * dt;
-  const fov = (innerWidth < innerHeight ? 60 : 50) + (S.boost > 0 ? 12 * (S.boost / 0.7) : 0);
+  // look down the course, leaning a little toward where the ball is heading
+  let want = 0;
+  if (sp > 1.2 && S.mode === 'play') want = clamp(Math.atan2(S.vx, S.vz), -0.45, 0.45);
+  if (orbit) S.camYaw += orbit * dt;
+  else S.camYaw += (want - S.camYaw) * Math.min(1, dt * 2.5);
+  const fov = (innerWidth < innerHeight ? 62 : 52) + (S.boost > 0 ? 12 * (S.boost / 0.7) : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 10 || 1); camera.updateProjectionMatrix(); }
-  const want = 5 + S.r * 6;
-  S.camDist += (want - S.camDist) * Math.min(1, dt * 2.2);
+  const wantD = 7 + S.r * 5.5;
+  S.camDist += (wantD - S.camDist) * Math.min(1, dt * 2.2);
   const dist = S.camDist, fx = Math.sin(S.camYaw), fz = Math.cos(S.camYaw), c = ballRoot.position;
-  let cx = c.x - fx * dist, cz = c.z - fz * dist, cy = c.y + dist * 0.78 + S.r * 0.6;   // high enough to see over trees
-  cy = Math.max(cy, groundY(cx, cz) + 1.5);
+  const cx = c.x - fx * dist, cz = c.z - fz * dist;
+  const cy = Math.max(c.y + dist * 0.62 + S.r * 0.6, groundY(cx, cz) + 2);
   S.shake = Math.max(0, S.shake - dt * 1.6);
   const sh = S.shake * S.shake * (0.3 + S.r * 0.15);
   camera.position.set(cx + rand(-sh, sh), cy + rand(-sh, sh), cz + rand(-sh, sh));
-  camera.lookAt(c.x + fx * (S.r * 2 + 1.5), c.y + S.r * 0.2, c.z + fz * (S.r * 2 + 1.5));
-  scene.fog.near = dist * 1.4;
-  scene.fog.far = dist * 7 + 160;
+  const ahead = S.r * 2.5 + 6;
+  camera.lookAt(c.x + fx * ahead, groundY(0, c.z + fz * ahead) + S.r * 0.6, c.z + fz * ahead);
+  scene.fog.near = dist * 1.6;
+  scene.fog.far = dist * 7 + 380;
 }
 
 // ============ end screen and share card
-function bestRecord() { try { return JSON.parse(localStorage.getItem('degul-best') || 'null'); } catch { return null; } }
+function bestRecord() { try { return JSON.parse(localStorage.getItem('degul-course-best') || 'null'); } catch { return null; } }
 function showEnd() {
   S.mode = 'over';
-  const d = S.maxD, best = bestRecord();
-  const isBest = !best || d > best.d;
-  if (isBest) try { localStorage.setItem('degul-best', JSON.stringify({ d, t: S.t, n: S.picks })); } catch {}
-  $('endTitle').textContent = S.win ? '캠퍼스를 통째로 뭉쳤어요!' : '기운이 다 빠졌어요';
-  $('endWhy').textContent = S.win ? '중앙대 건물이 하나도 안 남았어요' : '멈추지 말고 계속 붙여야 기운이 차요';
-  $('eDia').textContent = `${fmtD(d)} m`;
+  const sc = score(), best = bestRecord(), isBest = !best || sc > best.s;
+  if (isBest) try { localStorage.setItem('degul-course-best', JSON.stringify({ s: sc, a: S.arrived, last: S.last })); } catch {}
+  $('endTitle').textContent = S.win ? '제주까지 다 굴러 왔어요!' : '멈춰 버렸어요';
+  $('endWhy').textContent = S.win ? '전국 대학을 모두 지나왔어요' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
+  $('eScore').textContent = sc.toLocaleString();
+  $('eArr').textContent = `${S.arrived}곳`;
+  $('eDia').textContent = `${fmtD(S.maxD)} m`;
   $('eTime').textContent = fmtT(S.t);
-  $('eCount').textContent = `${S.picks.toLocaleString()}개`;
-  $('eGrade').textContent = GRADES[S.grade].n;
-  $('eBig').textContent = S.biggest ? S.biggest.name : '없음';
-  $('eRec').textContent = isBest ? (best ? '최고 기록 경신!' : '첫 기록!') : `최고 기록 ${fmtD(best.d)} m`;
+  $('eLast').textContent = S.last ? `${S.last}` : '아직 없음';
+  $('eRec').textContent = isBest ? (best ? '최고 기록 경신!' : '첫 기록!') : `최고 기록 ${best.s.toLocaleString()}점`;
   $('end').hidden = false;
   $('hud').hidden = true;
+  $('warn').classList.remove('on');
 }
 async function shareCard() {
   // frame the ball, render once, and copy the frame before the browser clears it
   placeCamera(0);
+  flush();
   renderer.render(scene, camera);
   const src = renderer.domElement, cv = document.createElement('canvas');
   cv.width = 1080; cv.height = 1350;
@@ -1361,17 +1402,17 @@ async function shareCard() {
   g.fillStyle = '#ffa620'; g.font = '110px "Black Han Sans"'; g.textBaseline = 'top';
   g.fillText('데굴', 60, 50);
   g.fillStyle = '#f4efe6'; g.font = '700 34px -apple-system, "Apple SD Gothic Neo", sans-serif';
-  g.fillText('중앙대를 굴려서 뭉쳐 봐', 330, 98);
-  g.fillStyle = '#f4efe6'; g.font = '84px "Black Han Sans"';
-  g.fillText(`${fmtD(S.maxD)} m`, 60, 1170);
+  g.fillText('전국 대학을 굴러 내려가 봐', 330, 98);
+  g.font = '84px "Black Han Sans"';
+  g.fillText(`${score().toLocaleString()}점`, 60, 1170);
   g.font = '700 34px -apple-system, "Apple SD Gothic Neo", sans-serif'; g.fillStyle = '#a59f95';
-  g.fillText(`${fmtT(S.t)} · ${S.picks.toLocaleString()}개 · ${GRADES[S.grade].n}`, 60, 1270);
+  g.fillText(`${S.arrived}곳 도착 · 지름 ${fmtD(S.maxD)} m · ${fmtT(S.t)}`, 60, 1270);
   g.textAlign = 'right'; g.fillStyle = '#ffa620';
-  g.fillText(S.biggest ? `${S.biggest.name}까지` : '', 1020, 1185);
+  if (S.last) g.fillText(`${S.last}까지`, 1020, 1185);
   const blob = await new Promise((res) => cv.toBlob(res, 'image/png'));
   const file = new File([blob], 'degul.png', { type: 'image/png' });
   if (COARSE && navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], text: `데굴: 중앙대에서 ${fmtD(S.maxD)} m짜리 공을 만들었어요` }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [file], text: `데굴: ${S.arrived}곳을 지나 ${score().toLocaleString()}점` }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'degul.png'; a.click();
@@ -1380,35 +1421,33 @@ async function shareCard() {
 
 // ============ game flow
 function clearBall() {
-  for (const k in STUCK) { const st = STUCK[k]; for (let i = 0; i < st.cap; i++) st.mesh.setMatrixAt(i, ZERO); st.owner.fill(0); st.ring = 0; st.mesh.count = 0; st.mesh.instanceMatrix.needsUpdate = true; }
+  for (const k in STUCK) { const st = STUCK[k]; for (let i = 0; i < st.cap; i++) st.mesh.setMatrixAt(i, ZERO); st.owner.fill(0); st.ring = 0; st.mesh.count = 0; dirty(st.mesh, 0); dirty(st.mesh, st.cap - 1); }
+  for (let i = 0; i < SPCAP; i++) SPM.setMatrixAt(i, ZERO);
+  dirty(SPM, 0); dirty(SPM, SPCAP - 1);
+  STUCKP.length = 0;
   tweens.length = 0;
   ballSpin.quaternion.identity();
   twinMesh.visible = false;
 }
-function restoreWorld() {
-  // put every object and building back where it started
-  for (const o of flying) hideObj(o);
+async function prepare() {
+  // drop whatever is loaded and bring in the first campuses again
+  for (const c of [...LOADED]) unloadSeg(c);
+  for (const c of COURSE) c.loading = false;
   flying.length = 0;
-  for (const k in WORLD) { const w = WORLD[k]; w.free.length = 0; const cap = w.mesh.instanceMatrix.count; for (let i = cap - 1; i >= 0; i--) { w.mesh.setMatrixAt(i, ZERO); w.free.push(i); } w.mesh.count = 0; }
-  OBJ.length = ORIGINAL.length;
   GRID.clear();
-  for (let i = 0; i < ORIGINAL.length; i++) { const o = (OBJ[i] = { ...ORIGINAL[i], alive: true, slot: -1 }); showObj(o); gridAdd(o); }
-  for (const b of BLD) { b.alive = true; b.hitCd = 0; b.mode = 'mesh'; scene.add(b.mesh); }
-  for (const p of PIECES) { resetPiece(p); hidePiece(p); }
-  STUCKP.length = 0;
-}
-const ORIGINAL = OBJ.map((o) => ({ ...o }));
-function startGame(fresh = true) {
-  if (fresh) { restoreWorld(); clearBall(); }
+  clearBall();
   resetGame();
+  await Promise.all(COURSE.slice(0, 3).map(loadSeg));
+  placeBall(0); placeCamera(1);
+}
+function startGame() {
   S.mode = 'play';
-  S.camDist = 5 + S.r * 6;
+  S.camDist = 7 + S.r * 5.5;
   $('start').hidden = true; $('end').hidden = true; $('hud').hidden = false;
   hudCache = '';
-  placeBall(0); placeCamera(0);
 }
-$('go').onclick = () => { initAudio(); startGame(false); toast('화면을 끌어서 굴려요', 2200); };
-$('again').onclick = () => { initAudio(); startGame(true); };
+$('go').onclick = () => { initAudio(); startGame(); toast('화면을 좌우로 끌어서 방향을 틀어요', 2200); };
+$('again').onclick = async () => { initAudio(); $('end').hidden = true; await prepare(); startGame(); };
 $('share').onclick = () => shareCard();
 
 // ============ main loop
@@ -1433,11 +1472,11 @@ function frame(now) {
   placeCamera(dt, S.mode === 'ending' || S.mode === 'over' || S.mode === 'start' ? 0.35 : 0);
   if (AC && rollGain) {
     const sp = Math.hypot(S.vx, S.vz);
-    rollGain.gain.setTargetAtTime(S.mode === 'play' ? Math.min(0.3, sp * 0.03) : 0, AC.currentTime, 0.08);
-    rollFilter.frequency.setTargetAtTime(160 + 700 / (1 + S.r * 0.25) + sp * 8, AC.currentTime, 0.1);
+    rollGain.gain.setTargetAtTime(S.mode === 'play' ? Math.min(0.3, sp * 0.02) : 0, AC.currentTime, 0.08);
+    rollFilter.frequency.setTargetAtTime(160 + 700 / (1 + S.r * 0.25) + sp * 6, AC.currentTime, 0.1);
   }
   if (S.mode === 'play' || S.mode === 'ending') updateHud();
-  if (pmDirty) { PM.instanceMatrix.needsUpdate = true; pmDirty = false; }
+  flush();
   renderer.render(scene, camera);
   // lower the resolution when frames are slow
   fpsAcc += raw; fpsN++;
@@ -1449,45 +1488,43 @@ function frame(now) {
   }
 }
 
-resetGame();
-placeBall(0); placeCamera(0);
 const best = bestRecord();
-if (best) $('best').textContent = `최고 기록 ${fmtD(best.d)} m · ${best.n.toLocaleString()}개`;
+if (best) $('best').textContent = `최고 기록 ${best.s.toLocaleString()}점 · ${best.a}곳${best.last ? ` (${best.last}까지)` : ''}`;
 $('loading').hidden = true;
 $('start').hidden = false;
-if (BOT.on) startGame(false);
 requestAnimationFrame(frame);
+await prepare();
+$('go').disabled = false; $('go').textContent = '굴리기';
+if (BOT.on) startGame();
 
 // ============ test handle
 window.__degul = {
-  S, BLD, OBJ, KINDS, CARDS, PIECES, STUCKP, STUCK, ballSpin, ballRoot, core, tweens,
-  // draw n frames back to back and wait for the GPU, to measure ms per frame even when rAF is throttled
+  S, COURSE, LOADED, KINDS, CARDS, STUCKP, ballRoot, ballSpin,
+  start: async () => { await prepare(); startGame(); },
+  bot: (on = true) => { BOT.on = on; },
+  // run the game logic for `sec` seconds without drawing; campuses still stream in (await between chunks)
+  async sim(sec = 60, dt = 1 / 30, every = 10) {
+    const log = [];
+    let next = S.t;
+    for (let t = 0; t < sec && S.mode === 'play'; t += dt) {
+      step(dt); updateTweens(dt); placeBall(dt); updateStuckPieces(dt);
+      if (S.t >= next) { log.push({ t: Math.round(S.t), d: +(2 * S.r).toFixed(1), sc: score(), a: S.arrived, z: Math.round(S.z), last: S.last, loaded: LOADED.length, p: 22000 - pFree.length }); next += every; }
+      if (LOADED.some((c) => c.loading) || COURSE.some((c) => c.loading)) await new Promise((r) => setTimeout(r, 0));
+    }
+    log.push({ end: S.mode, win: S.win, t: +S.t.toFixed(1), d: +(2 * S.r).toFixed(1), sc: score(), a: S.arrived, stall: +S.stall.toFixed(2) });
+    return log;
+  },
+  // draw the current state once (the in-app browser pauses rAF while its pane is hidden)
+  snap() { updateTweens(1); placeBall(0); updateStuckPieces(1); placeCamera(1); updateHud(); flush(); renderer.render(scene, camera); return { d: +(2 * S.r).toFixed(2), mode: S.mode, sc: score() }; },
   bench(n = 20) {
+    flush();
     const gl = renderer.getContext(), px = new Uint8Array(4), t0 = performance.now();
     for (let i = 0; i < n; i++) { renderer.render(scene, camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
     return { ms: +((performance.now() - t0) / n).toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr: pixelRatio };
   },
-  start: () => startGame(true),
-  bot: (on = true) => { BOT.on = on; },
-  // run the game logic for `sec` seconds without drawing; returns diameter over time
-  sim(sec = 180, dt = 1 / 30, every = 10) {
-    const log = [];
-    let next = 0;
-    for (let t = 0; t < sec && (S.mode === 'play' || S.mode === 'card'); t += dt) {
-      if (S.mode === 'card') chooseCard(CARDS.find((c) => S.lv[c.id] < 3).id);
-      step(dt); updateTweens(dt); placeBall(dt); updateStuckPieces(dt);
-      if (S.t >= next) { log.push({ t: Math.round(S.t), d: +(2 * S.r).toFixed(2), E: +S.E.toFixed(2), n: S.picks, g: GRADES[S.grade].n, b: BLD.filter((b) => !b.alive).length }); next += every; }
-    }
-    log.push({ end: S.mode, t: +S.t.toFixed(1), d: +(2 * S.r).toFixed(2), n: S.picks, lv: { ...S.lv } });
-    return log;
-  },
-  // draw the current state once (the in-app browser pauses rAF while its pane is hidden)
-  snap() { updateTweens(1); placeBall(0); updateStuckPieces(1); placeCamera(1); updateHud(); PM.instanceMatrix.needsUpdate = true; renderer.render(scene, camera); return { d: +(2 * S.r).toFixed(2), mode: S.mode }; },
-  counts: () => Object.fromEntries(Object.keys(KINDS).map((k) => [k, OBJ.filter((o) => o.k === k).length])),
-  card: (i) => document.querySelectorAll('.card')[i]?.click(),
-  end: () => { S.E = 0; },
   finish: () => showEnd(),
   cards: () => { S.pendingCards++; openCards(); },
+  card: (i) => document.querySelectorAll('.card')[i]?.click(),
 };
 </script>
 </body>
