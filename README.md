@@ -1,5 +1,7 @@
 # 데굴
 
+플레이: https://hong-iron.github.io/daegul/ (main에 push하면 `.github/workflows/pages.yml`이 `site/`를 올린다)
+
 전국 대학 캠퍼스 337곳을 판마다 무작위 순서로 내리막에 이어 붙이고, 공을 굴려 물건과 건물 블록을 붙이며 내려가는 모바일 3D 웹게임. 멈추면 끝. 페이지를 열면 바로 굴러가고, 결과 화면에서 이름을 정해 랭킹에 올린다.
 
 - `site/index.html` — 게임 전체(three.js 0.160, CDN)
