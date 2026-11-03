@@ -11,6 +11,10 @@ out = os.path.join(os.path.dirname(__file__), '..', 'site', 'course')
 os.makedirs(out, exist_ok=True)
 schools = [s for s in json.load(open(hub)) if 'lat' in s]
 per_name = Counter(s['name'] for s in schools)
+# stages: campuses grouped by province (Jeju joins Jeolla: it has only two); the boss is the stage's campus with the most buildings
+STAGE = {'서울': 'seoul', '경기': 'gyeonggi', '인천': 'gyeonggi', '강원': 'gangwon', '충남': 'chungcheong', '충북': 'chungcheong',
+         '대전': 'chungcheong', '세종': 'chungcheong', '전남': 'jeolla', '전북': 'jeolla', '광주': 'jeolla', '제주': 'jeolla',
+         '경북': 'gyeongbuk', '대구': 'gyeongbuk', '경남': 'gyeongnam', '부산': 'gyeongnam', '울산': 'gyeongnam'}
 
 def short(name):
     return name[:-3] + '대' if name.endswith('대학교') else name
@@ -49,6 +53,8 @@ for s in sorted(schools, key=lambda s: -s['lat']):
     }
     json.dump(data, open(os.path.join(out, s['code'] + '.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
     index.append({'code': s['code'], 'label': label(s), 'campus': s['campus'], 'lat': s['lat'], 'lon': s['lon'],
-                  'w': round(x1 - x0), 'd': round(z1 - z0), 'nb': len(blds)})
+                  'stage': STAGE[s['region'].split()[0]], 'w': round(x1 - x0), 'd': round(z1 - z0), 'nb': len(blds)})
+for st in set(c['stage'] for c in index):
+    max((c for c in index if c['stage'] == st), key=lambda c: c['nb'])['boss'] = True
 json.dump(index, open(os.path.join(out, 'index.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 print(len(index), 'campuses')
