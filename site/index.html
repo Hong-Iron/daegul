@@ -341,7 +341,8 @@ function part(geo, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) {
 const Box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 const Cyl = (a, b, h, n = 10) => new THREE.CylinderGeometry(a, b, h, n);
 const Ico = (r, d = 0) => new THREE.IcosahedronGeometry(r, d);
-const wheel = (r, w, x, y, z) => part(Cyl(r, r, w, 7), '#1d1d1f', x, y, z, Math.PI / 2);
+// wheels are flat boxes: from the usual camera height they read as wheels, at a fraction of a cylinder's triangles
+const wheel = (r, w, x, y, z) => part(Box(r * 1.8, r * 1.8, w), '#1d1d1f', x, y, z);
 const KINDS = {
   can:   { name: '음료 캔', s: 0.15, f: 0.5, cr: 0.05, spare: 150, geo: [part(Cyl(0.033, 0.033, 0.12, 6), '#d23b2f', 0, 0.06, 0)] },
   ball:  { name: '축구공', s: 0.24, f: 0.5, cr: 0.11, spare: 150, geo: [part(Ico(0.11), '#f2f2f2', 0, 0.11, 0)] },
@@ -350,7 +351,7 @@ const KINDS = {
   pot:   { name: '화분', s: 0.6, f: 0.4, cr: 0.2, spare: 120, geo: [part(Cyl(0.2, 0.15, 0.32, 6), '#a65b3a', 0, 0.16, 0), part(Ico(0.24), '#4f8a3a', 0, 0.45, 0)] },
   trash: { name: '쓰레기통', s: 0.95, f: 0.5, cr: 0.28, spare: 100, geo: [part(Cyl(0.28, 0.25, 0.85, 7), '#4d6b5a', 0, 0.425, 0), part(Cyl(0.3, 0.3, 0.06, 7), '#39483f', 0, 0.87, 0)] },
   bike:  { name: '자전거', s: 1.7, f: 0.12, cr: 0.35, spare: 100, geo: [
-    part(new THREE.TorusGeometry(0.33, 0.04, 2, 8), '#222222', 0.52, 0.36, 0), part(new THREE.TorusGeometry(0.33, 0.04, 2, 8), '#222222', -0.52, 0.36, 0),
+    part(Cyl(0.33, 0.33, 0.05, 6), '#2a2a2a', 0.52, 0.36, 0, Math.PI / 2), part(Cyl(0.33, 0.33, 0.05, 6), '#2a2a2a', -0.52, 0.36, 0, Math.PI / 2),
     part(Box(1.05, 0.05, 0.05), '#ffffff', 0, 0.62, 0), part(Box(0.05, 0.4, 0.05), '#ffffff', -0.25, 0.6, 0),
     part(Box(0.22, 0.05, 0.1), '#222222', -0.25, 0.82, 0), part(Box(0.05, 0.05, 0.5), '#ffffff', 0.45, 0.9, 0)] },
   bench: { name: '벤치', s: 1.8, f: 0.2, cr: 0.45, spare: 80, geo: [
@@ -382,7 +383,7 @@ const PARASOL_COLORS = ['#e2574c', '#f0c419', '#2f8fb8', '#f4f1ea'];
 const TINY = ['can', 'ball', 'cone', 'pot'];
 const WALLS = ['#d9d2c5', '#c9bfae', '#bfc4c4', '#d6cdbd', '#b9ae9c', '#e2ddd3', '#cbb9a3'];
 // how many of each thing can exist at once across the campuses that are loaded
-const CAPS = { can: 3000, ball: 3000, cone: 3000, pot: 3000, trash: 1400, bike: 1800, bench: 700, vend: 500, parasol: 500, car: 1000, lamp: 600, tree: 2600, bus: 120, chunk: 700 };
+const CAPS = { can: 2200, ball: 2200, cone: 2200, pot: 2200, trash: 1000, bike: 1000, bench: 700, vend: 500, parasol: 500, car: 800, lamp: 600, tree: 2600, bus: 120, chunk: 700 };
 
 // ============ instanced meshes and dirty ranges
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -405,24 +406,38 @@ function flush() {
     if (u.attrDirty) flushAttrs(m);
   }
 }
+// slot allocator for instanced meshes: always hands out the lowest free slot and trims the drawn count when the top
+// slots empty, so a campus that unloads stops costing anything to draw
+function slotPool(mesh, cap) { return { mesh, cap, used: new Uint8Array(cap), lo: 0, n: 0 }; }
+function allocSlot(w) {
+  for (let i = w.lo; i < w.cap; i++) if (!w.used[i]) {
+    w.used[i] = 1; w.lo = i + 1; w.n++;
+    if (i >= w.mesh.count) w.mesh.count = i + 1;
+    return i;
+  }
+  return -1;
+}
+function freeSlot(w, i) {
+  w.used[i] = 0; w.n--;
+  if (i < w.lo) w.lo = i;
+  if (i === w.mesh.count - 1) { let c = i; while (c > 0 && !w.used[c - 1]) c--; w.mesh.count = c; }
+}
 const WORLD = {};
 for (const k in KINDS) {
   const cap = CAPS[k], mesh = track(new THREE.InstancedMesh(KINDS[k].geo, objMat, cap));
   mesh.frustumCulled = false;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const free = [];
-  for (let i = cap - 1; i >= 0; i--) { mesh.setMatrixAt(i, ZERO); mesh.setColorAt(i, _c.set(0xffffff)); free.push(i); }
+  for (let i = 0; i < cap; i++) { mesh.setMatrixAt(i, ZERO); mesh.setColorAt(i, _c.set(0xffffff)); }
   mesh.count = 0;   // only slots up to the highest one in use get drawn
-  WORLD[k] = { mesh, free };
+  WORLD[k] = slotPool(mesh, cap);
   scene.add(mesh);
 }
 function showObj(o) {
   if (o.k === 'piece') { drawPiece(o); return true; }
   const w = WORLD[o.k];
   if (o.slot < 0) {
-    if (!w.free.length) return false;
-    o.slot = w.free.pop();
-    if (o.slot >= w.mesh.count) w.mesh.count = o.slot + 1;
+    o.slot = allocSlot(w);
+    if (o.slot < 0) return false;
     w.mesh.setColorAt(o.slot, _c.set(o.color || 0xffffff)); w.mesh.userData.colorDirty = true;
   }
   _q.setFromAxisAngle(UP, o.yaw);
@@ -437,7 +452,7 @@ function hideObj(o) {
   if (o.slot < 0) return;
   w.mesh.setMatrixAt(o.slot, ZERO);
   dirty(w.mesh, o.slot);
-  w.free.push(o.slot);
+  freeSlot(w, o.slot);
   o.slot = -1;
 }
 
@@ -514,8 +529,7 @@ function flushAttrs(mesh) {
 }
 const PM = blockMesh(PCAP);
 scene.add(PM);
-const pFree = [];
-for (let i = PCAP - 1; i >= 0; i--) pFree.push(i);
+const PW = slotPool(PM, PCAP);
 function drawPiece(p) {
   if (p.slot < 0) return;
   _m.compose(_p.set(p.x, p.y, p.z), p.q, _s.set(p.sx, p.sy, p.sz));
@@ -524,7 +538,7 @@ function drawPiece(p) {
 function freePiece(p) {
   if (p.slot < 0) return;
   PM.setMatrixAt(p.slot, ZERO); dirty(PM, p.slot);
-  pFree.push(p.slot); p.slot = -1;
+  freeSlot(PW, p.slot); p.slot = -1;
 }
 function makeBuilding(c, src, idx) {
   const poly = src.o.map(([x, z]) => [x, z + c.zc]);
@@ -562,14 +576,14 @@ function makeBuilding(c, src, idx) {
     if (inPoly(uc, vc, uv)) cells.push([uc, vc]);
   }
   if (!cells.length) cells.push([(u0 + u1) / 2, (v0 + v1) / 2]);
-  if (pFree.length < cells.length * L) return null;
+  if (PW.cap - PW.n < cells.length * L) return null;
   const hq = new THREE.Quaternion().setFromAxisAngle(UP, -th);
   Object.assign(b, { cos: cs, sin: sn });
   for (const [uc, vc] of cells) {
     const col = [];
     for (let k = 0; k < L; k++) {
       const p = {
-        k: 'piece', b, seg: c, slot: pFree.pop(), top: k === L - 1, u: uc, v: vc, ly: (k + 0.5) * lh, sx: cu, sy: lh, sz: cv,
+        k: 'piece', b, seg: c, slot: allocSlot(PW), top: k === L - 1, u: uc, v: vc, ly: (k + 0.5) * lh, sx: cu, sy: lh, sz: cv,
         s: 0.45 * (Math.max(cu, cv) + lh), vol: cu * lh * cv * 0.07, cr: Math.max(cu, cv) * 0.5,
         hx: cx + uc * cs - vc * sn, hz: cz + uc * sn + vc * cs, hq,
         x: 0, y: 0, z: 0, q: new THREE.Quaternion(), state: 'intact', alive: false,
@@ -752,23 +766,41 @@ function placeProps(c, d) {
 function placeChallenge(c) {
   if (!c.chal) return;
   const za = c.ze + 10, zb = c.ze + ZL - 10, hw = Math.min(c.halfW, 120) - 6;
-  const dExp = Math.max(2 * S.r, 1) * 1.25;            // the ball will have grown a little by the time it gets here
+  const dNow = Math.max(2 * S.r, 1);                  // the ball only grows from here, so anything it can take now it can take then
   c.chalObjs = 0;
   if (c.chal === 'park') {
-    const tier = dExp < 3.6 ? ['pot', 'trash', 'cone'] : dExp < 9 ? ['bike', 'bench', 'vend'] : dExp < 22 ? ['car'] : ['car', 'bus'];
-    const step = Math.max(...tier.map((k) => KINDS[k].s)) * 1.5;
-    seed = hashStr(c.code + 'park') || 1;
-    for (let z = za + 30; z < zb - 30 && c.chalObjs < 220; z += step) for (let x = -hw; x <= hw && c.chalObjs < 220; x += step) {
-      const k = pick(tier), o = addObj(c, k, x + srange(-0.2, 0.2) * step, z, Math.PI / 2, 1, k === 'car' ? pick(CAR_COLORS) : k === 'bus' ? '#3d9a5b' : k === 'bike' ? pick(BIKE_COLORS) : k === 'vend' ? pick(VEND_COLORS) : null);
-      if (o) { o.chal = true; c.chalObjs++; }
-    }
-    c.chalName = { pot: '화단', trash: '화단', cone: '화단', bike: '자전거 보관소', bench: '자전거 보관소', vend: '자전거 보관소', car: '주차장', bus: '버스 차고지' }[tier[0]];
-    c.chalGoal = Math.ceil(c.chalObjs * 0.5);
+    c.lotBuilt = false;               // laid out once the ball is close, sized for the ball it is by then (see buildLot)
+    c.chalName = '물건 더미';
   } else if (c.chal === 'wall') {
+    const dExp = dNow * 1.25;
     const t = Math.max(4, dExp * 0.8), h = Math.max(8, dExp * 1.6), zw = c.ze + ZL * 0.55 - c.zc, w = Math.max(c.halfW, COURSE[c.i + 1]?.halfW || 0) + 30;
     const b = makeBuilding(c, { o: [[-w, zw], [w, zw], [w, zw + t], [-w, zw + t]], h, n: '공사장 가림막', cell: Math.max(5, dExp * 1.15), layer: Math.max(4, dExp * 1.2), wall: '#e07b2a', rc: '#3a3a3a' }, 999);
     if (b) { b.hoard = true; c.blds.push(b); c.wallZ = b.z1; }
   } else c.chalName = '시간 안에 도착';
+}
+// the sweep-up lot: the biggest kinds the ball can already take, spread over the whole stretch in a band a few balls wide
+function buildLot(c) {
+  c.lotBuilt = true;
+  const za = c.ze + 30, zb = c.ze + ZL - 30, hw = Math.min(c.halfW, 120) - 6, dNow = Math.max(2 * S.r, 1);
+  const fits = Object.keys(KINDS).filter((k) => !['chunk', 'tree', 'lamp'].includes(k) && KINDS[k].s <= dNow * 0.45)
+    .sort((a, b) => KINDS[b].s - KINDS[a].s);
+  // a kind whose slots are nearly used up would leave the lot empty, so skip to the next one that has room
+  const tier = fits.filter((k) => WORLD[k].cap - WORLD[k].n > 120).slice(0, 3);
+  if (!tier.length) { c.chal = 'time'; c.chalName = '시간 안에 도착'; return; }
+  const size = Math.max(...tier.map((k) => KINDS[k].s)), lw = Math.min(hw, Math.max(8, dNow * 2.5));
+  const mid = clamp(S.x, -hw + lw, hw - lw);         // centred on the ball's line, so it rolls straight into it
+  const perRow = Math.max(1, Math.floor((2 * lw) / (size * 1.3)) + 1), rows = Math.ceil(200 / perRow);
+  const dz = Math.max(size * 1.3, (zb - za) / rows), dx = (2 * lw) / Math.max(1, perRow - 1);
+  seed = hashStr(c.code + 'park') || 1;
+  c.chalObjs = 0;
+  for (let z = za; z < zb; z += dz) for (let i = 0; i < perRow; i++) {
+    const k = pick(tier), x = mid - lw + i * dx + srange(-0.25, 0.25) * dx;
+    const o = addObj(c, k, x, z + srange(-0.25, 0.25) * dz, Math.PI / 2, 1, k === 'car' ? pick(CAR_COLORS) : k === 'bus' ? '#3d9a5b' : k === 'bike' ? pick(BIKE_COLORS) : k === 'vend' ? pick(VEND_COLORS) : k === 'parasol' ? pick(PARASOL_COLORS) : null);
+    if (o) { o.chal = true; c.chalObjs++; }
+  }
+  if (c.chalObjs < 20) { c.chal = 'time'; c.chalName = '시간 안에 도착'; return; }
+  c.chalName = { can: '쓰레기 더미', ball: '운동장', cone: '공사 자재', pot: '화단', trash: '화단', bike: '자전거 보관소', bench: '광장', vend: '자판기 줄', parasol: '야외 카페', car: '주차장', bus: '버스 차고지' }[tier[0]] || '물건 더미';
+  c.chalGoal = Math.max(5, Math.ceil(c.chalObjs * 0.25));
 }
 function startChallenge(c) {
   c.chalDone = true;
@@ -778,7 +810,8 @@ function startChallenge(c) {
   if (c.chal === 'wall') { ch.title = '가림막을 뚫어라'; }
   if (c.chal === 'time') {
     const vmax = (15 + 3.2 * S.r) * STAT.dash(S.lv.dash);
-    ch.limit = Math.ceil((nx.zs + 5 - S.z) / (vmax * 0.62)) + 2;
+    // the ball speeds up as it grows on the way, so the clock assumes a bit more than today's top speed
+    ch.limit = Math.ceil((nx.zs + 5 - S.z) / (vmax * 1.3));
     ch.title = `${nx.label}까지 ${ch.limit}초 안에`;
   }
   S.chal = ch;
@@ -794,8 +827,20 @@ function endChallenge(ok) {
   if (ok) { S.bonus += 300; S.pendingCards++; banner('도전 성공!<small>+300 · 강화 하나</small>', 1600); sfxArrive(); vib([20, 30, 20]); }
   else if (ch.type !== 'wall') toast('도전 실패… 다음 기회에', 1600);
 }
+function updateBossBox() {
+  const c = bossCampus();
+  if (S.chal || S.arrived < COURSE.length || !c.targets || S.clear) return;
+  const left = S.bossEnd - S.t, done = c.targets.length - targetsLeft().length;
+  $('chal').hidden = false;
+  $('chalT').textContent = `보스 · 목표 ${done}/${c.targets.length} 무너뜨림`;
+  $('chalG').textContent = `${Math.max(0, left).toFixed(1)}초`;
+  $('chalBar').style.transform = `scaleX(${clamp(left / bossTime(c), 0, 1)})`;
+}
 function updateChallenge() {
-  for (const c of LOADED) if (c.chal && !c.chalDone && S.z >= c.ze && S.z < c.ze + ZL) startChallenge(c);
+  for (const c of LOADED) {
+    if (c.chal === 'park' && !c.lotBuilt && S.z > c.ze - 150) buildLot(c);
+    if (c.chal && !c.chalDone && S.z >= c.ze && S.z < c.ze + ZL) startChallenge(c);
+  }
   const ch = S.chal;
   if (!ch) return;
   const box = $('chal'), bar = $('chalBar');
@@ -813,20 +858,32 @@ function updateChallenge() {
   }
 }
 
-// ============ boss: knock down the biggest building of the city's biggest campus
+// ============ boss: knock down the three biggest buildings of the city's biggest campus before the clock runs out
+const BOSS_TARGETS = 3, DOWN_AT = 0.85;
+// more time on a big campus, where the three targets lie far apart: 30 s for ~0.5 km, up to 60 s
+const bossTime = (c) => clamp(Math.round(22 + Math.hypot(c.w, c.d) / 55), 30, 60);
 function markTarget(c) {
-  let best = null;
-  for (const b of c.blds) if (!b.hoard && (!best || b.area * b.h > best.area * best.h)) best = b;
-  if (!best) return;
-  best.target = true; c.target = best; best.total = best.pieces.length;
-  const rad = Math.max(5, Math.sqrt(best.area) * 0.18);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, 600, 16, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffa620, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, fog: false }));
-  beam.position.set(best.cx, best.base + best.h + 300, best.cz);
-  c.beacon = beam; scene.add(beam);
+  const big = c.blds.filter((b) => !b.hoard).sort((a, b) => b.area * b.h - a.area * a.h).slice(0, BOSS_TARGETS);
+  c.targets = big; c.beacons = [];
+  for (const b of big) {
+    b.target = true; b.total = b.pieces.length; b.downDone = false;
+    const rad = Math.max(5, Math.sqrt(b.area) * 0.18);
+    b.beam = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, 600, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xffa620, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    b.beam.position.set(b.cx, b.base + b.h + 300, b.cz);
+    c.beacons.push(b.beam); scene.add(b.beam);
+  }
 }
-// how much of the target is down: blocks broken off, fallen, or stuck to the ball
+// how much of a target is down: blocks broken off, fallen, or stuck to the ball
 const targetDown = (b) => b.pieces.reduce((n, p) => n + (p.state !== 'intact'), 0) / b.total;
+const bossCampus = () => COURSE[COURSE.length - 1];
+const targetsLeft = () => (bossCampus().targets || []).filter((b) => !b.downDone);
+// the standing target closest to the ball, for the arrow and the bot
+function nearestTarget() {
+  let best = null, bd = Infinity;
+  for (const b of targetsLeft()) { const d = Math.hypot(b.cx - S.x, b.cz - S.z); if (d < bd) { bd = d; best = b; } }
+  return best;
+}
 
 // ============ streaming campuses in and out
 const START_Z = -GAP / 2 + 6;
@@ -865,8 +922,8 @@ function unloadSeg(c) {
   for (const b of c.blds) for (const p of b.pieces) { p.alive = false; if (p.state !== 'stuck') freePiece(p); }
   for (let i = flying.length - 1; i >= 0; i--) if (flying[i].seg === c) flying.splice(i, 1);
   scene.remove(c.ground);
-  if (c.beacon) { scene.remove(c.beacon); c.beacon.geometry.dispose(); c.beacon.material.dispose(); c.beacon = null; }
-  c.target = null;                  // the target belongs to this load of the campus
+  for (const m of c.beacons || []) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  c.beacons = null; c.targets = null;   // the targets belong to this load of the campus
   c.ground.geometry.dispose(); c.ground.material.map.dispose(); c.ground.material.dispose();
   c.blds = []; c.objs = []; c.ground = null; c.mini = null;
 }
@@ -1028,7 +1085,7 @@ function resetGame() {
     picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progX: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
     lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
     camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, quit: false, pendingCards: 0,
-    boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false, events: [],
+    boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false, bossEnd: Infinity, events: [],
   });
 }
 const score = () => S.picks + S.arrived * 100 + S.bonus;
@@ -1194,7 +1251,7 @@ const fmtD = (d) => (d < 10 ? d.toFixed(2) : d < 100 ? d.toFixed(1) : Math.round
 const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 let hudCache = '';
 function updateHud() {
-  const d = 2 * S.r, sc = score(), nx = COURSE[S.nextArr], tg = !nx && COURSE[COURSE.length - 1].target;
+  const d = 2 * S.r, sc = score(), nx = COURSE[S.nextArr], tg = !nx && nearestTarget();
   const dist = nx ? Math.max(0, Math.round(Math.hypot(S.x, nx.zs + 5 - S.z))) : 0;
   const key = `${sc}|${fmtD(d)}|${S.grade}|${Math.floor(S.t)}|${S.arrived}|${dist}|${tg ? Math.round(targetDown(tg) * 100) : ''}`;
   if (key !== hudCache) {
@@ -1203,7 +1260,7 @@ function updateHud() {
     $('dia').innerHTML = `지름 ${fmtD(d)} m · <b>${GRADES[S.grade].n}</b>`;
     $('time').textContent = fmtT(S.t);
     $('arr').textContent = `${curStage().name} ${S.arrived}/${COURSE.length}`;
-    $('navName').textContent = nx ? `${nx.boss ? '보스 ' : ''}${nx.label}` : tg ? `목표 ${tg.name}` : '';
+    $('navName').textContent = nx ? `${nx.boss ? '보스 ' : ''}${nx.label}` : tg ? tg.name : '';
     $('navDist').textContent = nx ? `${dist.toLocaleString()} m` : tg ? `${Math.round(targetDown(tg) * 100)}% 무너짐` : '';
   }
   $('dash').classList.toggle('cool', S.boostCd > 0);
@@ -1322,10 +1379,10 @@ function updateFlying(dt) {
     showObj(o);
   }
 }
-function knockObj(o, ux, uz, speed) {
+function knockObj(o, ux, uz, speed, lift = 1) {
   o.alive = false;
   o.vx = ux * speed * rand(1.1, 1.6) + rand(-2, 2); o.vz = uz * speed * rand(1.1, 1.6) + rand(-2, 2);
-  o.vy = 4 + speed * rand(0.3, 0.6); o.spin = o.k === 'piece' ? rand(-4, 4) : rand(-8, 8); o.y += 0.05;
+  o.vy = (4 + speed * rand(0.3, 0.6)) * lift; o.spin = (o.k === 'piece' ? rand(-4, 4) : rand(-8, 8)) * lift; o.y += 0.05;
   flying.push(o);
   sfxThud(speed * 0.4); S.shake = Math.max(S.shake, 0.2); vib(10);
 }
@@ -1365,7 +1422,7 @@ function collapse(b) {
 }
 // break the blocks around a contact point; with eat, the ones small enough stick straight to the ball
 function hitBuilding(b, px, pz, power, eat) {
-  const r = S.r, rad = r * 1.05 + 1 + power * 0.12, top = ballRoot.position.y + r * (eat ? 1 : 0.8), lim = ratio() * 2 * r;
+  const r = S.r, rad = b.hoard ? Math.max(r * 1.8 + 4, r * 1.05 + 1 + power * 0.12) : r * 1.05 + 1 + power * 0.12, top = ballRoot.position.y + r * (eat ? 1 : 0.8), lim = ratio() * 2 * r;
   let n = 0;
   for (const p of b.pieces) {
     if (p.state !== 'intact' || p.y - p.sy / 2 > top || Math.hypot(p.x - px, p.z - pz) - p.cr > rad) continue;
@@ -1446,7 +1503,7 @@ function botInput(dt) {
     let best = 0, bx = S.x;
     gridEach(S.x, S.z + 25 + S.r * 3, 30 + S.r * 3, (o) => {
       if (o.s > lim || o.z < S.z) return;
-      const d = Math.hypot(o.x - S.x, o.z - S.z), sc = o.vol / (d + 3) ** 2;
+      const d = Math.hypot(o.x - S.x, o.z - S.z), sc = (o.chal ? 4 : 1) * o.vol / (d + 3) ** 2;   // like a player, go for the challenge lot
       if (sc > best) { best = sc; bx = o.x; }
     });
     BOT.tx = bx;
@@ -1454,18 +1511,24 @@ function botInput(dt) {
       if (!b.alive || b.minS <= lim || b.z0 < S.z - 2 || b.z0 > S.z + 25 + S.r * 4) continue;
       if (BOT.tx > b.x0 - S.r * 1.3 && BOT.tx < b.x1 + S.r * 1.3) BOT.tx = Math.abs(S.x - b.x0) < Math.abs(S.x - b.x1) ? b.x0 - S.r * 1.6 : b.x1 + S.r * 1.6;
     }
-    const tg = S.arrived === COURSE.length && COURSE[COURSE.length - 1].target;
-    if (tg && tg.alive) BOT.tx = tg.cx;
+    const tg = S.arrived === COURSE.length && nearestTarget();
+    if (tg) BOT.tx = tg.cx;
     BOT.tx = clamp(BOT.tx, -hw, hw);
     if (S.stall > 0.4 && S.boostCd <= 0) S.boostReq = true;
   }
+  const tg = S.arrived === COURSE.length && nearestTarget();
+  if (tg && tg.cz < S.z + 10) { const dx = tg.cx - S.x, dz = tg.cz - S.z, L = Math.hypot(dx, dz) || 1; return [dx / L, dz / L]; }
   const dx = BOT.tx - S.x, L = Math.hypot(dx, 12);
   return [dx / L, 12 / L];
 }
 function arrive(c) {
   S.arrived++; S.last = c.label;
   note('arrive', { c: c.label, boss: !!c.boss });
-  if (c.boss) { banner(`보스 ${c.label}!<small>${c.target ? `${josa(c.target.name, '을', '를')} 무너뜨려라` : ''} +100</small>`, 2200); sfxBig(); vib([40, 40, 40]); return; }
+  if (c.boss) {
+    S.bossEnd = S.t + bossTime(c);
+    banner(`보스 ${c.label}!<small>${bossTime(c)}초 안에 빛기둥 건물 ${(c.targets || []).length}곳을 무너뜨려라</small>`, 2400); sfxBig(); vib([40, 40, 40]);
+    return;
+  }
   banner(`${c.label} 도착!<small>+100</small>`);
   sfxArrive(); vib([20, 30, 20]);
   if (S.arrived % 2 === 0) S.pendingCards++;
@@ -1558,6 +1621,13 @@ function step(dt) {
       if (broke && S.boost > 0) { S.vx *= 0.8; S.vz *= 0.8; continue; }   // a dash smashes straight through
     }
     S.x = qx + nx * (R + 0.01); S.z = qz + nz * (R + 0.01);
+    {
+      // the slope keeps pressing the ball into the wall; turn that push into a slide along the wall, toward the closer corner
+      let tx = -nz, tz = nx;
+      if ((b.cx - S.x) * tx + (b.cz - S.z) * tz > 0) { tx = -tx; tz = -tz; }
+      const push = Math.max(0, DOWN * (1 + r / 20) * -nz) + 2;
+      S.vx += tx * push * dt * 1.6; S.vz += tz * push * dt * 1.6;
+    }
     if (vn < 0) {
       const e = 1 + 0.35 / (1 + r / 8);                 // big balls bounce less
       S.vx -= e * vn * nx; S.vz -= e * vn * nz;
@@ -1573,6 +1643,8 @@ function step(dt) {
     if (d >= R || d < 1e-4) return;
     const nx = -dx / d, nz = -dz / d, vn = S.vx * nx + S.vz * nz;
     if (vn < -2.5 && o.s <= 2 * r * 1.15) { knockObj(o, -nx, -nz, -vn); S.vx *= 0.93; S.vz *= 0.93; return; }
+    // a bit bigger than the ball (a parked car, a lamp post, a tree): shoved out of the way, so it can't pin a small ball
+    if (vn < 0 && o.s <= 2 * r * 1.8) { knockObj(o, -nx, -nz, Math.max(-vn, 3) * 0.6, 0.3); S.vx *= 0.9; S.vz *= 0.9; return; }
     S.x = o.x + nx * R; S.z = o.z + nz * R;
     if (vn < 0) {
       S.vx -= 1.3 * vn * nx; S.vz -= 1.3 * vn * nz;
@@ -1594,12 +1666,24 @@ function step(dt) {
   // arrivals, score pulse, stalling
   while (S.nextArr < COURSE.length && S.z >= COURSE[S.nextArr].zs + 5) arrive(COURSE[S.nextArr++]);
   updateChallenge();
-  const boss = COURSE[COURSE.length - 1];
-  if (boss.target && !S.clear && targetDown(boss.target) >= 0.85) {
-    S.clear = true; S.bonus += 1000; S.win = true; note('clear');
-    banner(`${curStage().name} 클리어!<small>+1,000</small>`, 2400); sfxLevel(); vib([60, 40, 60]);
+  const boss = bossCampus();
+  if (boss.targets && !S.clear) {
+    for (const b of boss.targets) if (!b.downDone && targetDown(b) >= DOWN_AT) {
+      b.downDone = true; scene.remove(b.beam);
+      const left = targetsLeft().length;
+      if (left) { toast(`${josa(b.name, '을', '를')} 무너뜨렸어요! ${left}곳 남음`, 1800); sfxBig(); vib(40); }
+    }
+    if (!targetsLeft().length) {
+      S.clear = true; S.bonus += 1000; S.win = true; note('clear');
+      $('chal').hidden = true;
+      banner(`${curStage().name} 클리어!<small>+1,000</small>`, 2400); sfxLevel(); vib([60, 40, 60]);
+    }
   }
-  if (!S.clear && S.arrived === COURSE.length && S.z > boss.ze + 30 && !S.missed) { S.missed = true; note('missed', { down: boss.target ? +targetDown(boss.target).toFixed(2) : null }); }
+  updateBossBox();
+  if (!S.clear && !S.missed && S.arrived === COURSE.length && (S.z > boss.ze + 30 || S.t > S.bossEnd)) {
+    S.missed = S.t > S.bossEnd ? 'time' : 'passed';
+    note('missed', { why: S.missed, left: targetsLeft().length });
+  }
   const sc = score();
   if (sc >= S.nextPulse && S.t - S.pulseT > 0.3) {
     S.pulseT = S.t; pulseScore();
@@ -1618,11 +1702,10 @@ function step(dt) {
     while (S.grade + 1 < GRADES.length && S.maxD >= GRADES[S.grade + 1].d) {
       S.grade++; toast(`${GRADES[S.grade].n}! 이제 ${GRADES[S.grade].n.replace('급', '')}도 붙어요`); sfxLevel(); vib([30, 40, 30]); S.shake = Math.max(S.shake, 0.5);
     }
-    while (S.cardIx < CARD_AT.length && S.maxD >= CARD_AT[S.cardIx]) { S.cardIx++; S.pendingCards++; }
   }
-  if (S.stall >= STALL_T || S.missed || (S.clear && (S.endT += dt) > 2.4)) {
+  if (S.stall >= (S.t < 30 ? 3 : STALL_T) || S.missed || (S.clear && (S.endT += dt) > 2.4)) {
     S.win = S.clear;
-    if (S.stall >= STALL_T) { const c = COURSE[segIndexAt(S.z)]; note('stall', { at: S.z > c.ze ? `${c.label} 뒤 ${c.chal || ''}` : c.label, x: Math.round(S.x), chal: S.chal && S.chal.type }); }
+    if (!S.missed && !S.clear) { const c = COURSE[segIndexAt(S.z)]; note('stall', { at: S.z > c.ze ? `${c.label} 뒤 ${c.chal || ''}` : c.label, x: Math.round(S.x), chal: S.chal && S.chal.type }); }
     S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true; $('mini').hidden = true; $('chal').hidden = true;
   } else if (S.pendingCards > 0 && S.mode === 'play') {
     if (BOT.on) { while (S.pendingCards > 0) { const ok = CARDS.filter(canRaise); S.lv[ok[Math.floor(Math.random() * ok.length)].id]++; S.pendingCards--; } }
@@ -1677,10 +1760,10 @@ function showEnd() {
   const sc = score(), best = bestRecord(), isBest = !best || sc > best.s;
   if (isBest) try { localStorage.setItem('degul-course-best', JSON.stringify({ s: sc, a: S.arrived, last: S.last })); } catch {}
   if (S.clear) { cleared.add(curStage().id); try { localStorage.setItem('degul-cleared', JSON.stringify([...cleared])); } catch {} }
-  const boss = COURSE[COURSE.length - 1];
-  $('endTitle').textContent = S.clear ? `${curStage().name} 클리어!` : S.missed ? '목표를 놓쳤어요' : S.quit ? '여기까지 굴렀어요' : '멈춰 버렸어요';
+  const boss = bossCampus();
+  $('endTitle').textContent = S.clear ? `${curStage().name} 클리어!` : S.missed === 'time' ? '시간이 다 됐어요' : S.missed ? '목표를 놓쳤어요' : S.quit ? '여기까지 굴렀어요' : '멈춰 버렸어요';
   $('endWhy').textContent = S.clear ? (STAGES[stageIx + 1] ? `${josa(STAGES[stageIx + 1].name, '이', '가')} 열렸어요` : '모든 도시를 깼어요!')
-    : S.missed ? `${boss.label}의 ${josa(boss.target ? boss.target.name : '목표 건물', '을', '를')} 무너뜨려야 해요` : S.quit ? '' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
+    : S.missed ? `${boss.label}에서 빛기둥 건물 ${BOSS_TARGETS}곳을 ${bossTime(boss)}초 안에 무너뜨려야 해요 (남은 곳 ${targetsLeft().length})` : S.quit ? '' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
   drawStages();
   $('again').textContent = S.clear && STAGES[stageIx + 1] ? `다음 도시: ${STAGES[stageIx + 1].name}` : '한 판 더';
   $('eScore').textContent = sc.toLocaleString();
@@ -1948,7 +2031,7 @@ window.__degul = {
     let next = S.t;
     for (let t = 0; t < sec && S.mode === 'play'; t += dt) {
       step(dt); updateTweens(dt); placeBall(dt); updateStuckPieces(dt);
-      if (S.t >= next) { log.push({ t: Math.round(S.t), d: +(2 * S.r).toFixed(1), sc: score(), a: S.arrived, z: Math.round(S.z), last: S.last, loaded: LOADED.length, p: 22000 - pFree.length }); next += every; }
+      if (S.t >= next) { log.push({ t: Math.round(S.t), d: +(2 * S.r).toFixed(1), sc: score(), a: S.arrived, z: Math.round(S.z), last: S.last, loaded: LOADED.length, p: PW.n }); next += every; }
       if (LOADED.some((c) => c.loading) || COURSE.some((c) => c.loading)) await new Promise((r) => setTimeout(r, 0));
     }
     log.push({ end: S.mode, win: S.win, clear: S.clear, missed: S.missed, bonus: S.bonus, t: +S.t.toFixed(1), d: +(2 * S.r).toFixed(1), sc: score(), a: S.arrived, stall: +S.stall.toFixed(2) });
