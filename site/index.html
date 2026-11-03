@@ -1009,7 +1009,7 @@ const canRaise = (c) => !c.max || S.lv[c.id] < c.max;
 // so big buildings stay something to dodge
 const grow = () => 6 / (1 + S.r / 6);
 const DOWN = 11;               // pull down the slope (m/s²)
-// stopped = has not gained 4 m down the course for this long (bouncing in place against a wall counts too)
+// stopped = has not got 4 m away from where it was, in any direction, for this long (bouncing in place against a wall counts too)
 const STALL_D = 4, STALL_T = 1.6;
 const volOf = (r) => (4 / 3) * Math.PI * r ** 3;
 const radOf = (v) => Math.cbrt((3 * v) / (4 * Math.PI));
@@ -1023,7 +1023,7 @@ let token = 0;
 function resetGame() {
   Object.assign(S, {
     mode: 'start', t: 0, r: 0.5, V: volOf(0.5), maxD: 1, x: 0, z: START_Z, vx: 0, vz: 3,
-    picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
+    picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progX: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
     lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
     camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, quit: false, pendingCards: 0,
     boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false,
@@ -1603,7 +1603,8 @@ function step(dt) {
     S.nextPulse = (Math.floor(sc / st) + 1) * st;
   }
   sp = Math.hypot(S.vx, S.vz);
-  if (S.z > S.progZ + STALL_D || S.t < 3) { S.progZ = Math.max(S.progZ, S.z); S.stall = 0; } else S.stall += dt * (S.chal && S.chal.type === 'wall' ? 0.45 : 1);
+  // turning round passes through a moment of zero speed, so only slow moments near the same spot count
+  if (Math.hypot(S.x - S.progX, S.z - S.progZ) > STALL_D || S.t < 3) { S.progX = S.x; S.progZ = S.z; S.stall = 0; } else if (sp < 6) S.stall += dt * (S.chal && S.chal.type === 'wall' ? 0.45 : 1);
   S.streamT -= dt;
   if (S.streamT <= 0) { S.streamT = 0.25; stream(); }
   const dnow = 2 * S.r;
