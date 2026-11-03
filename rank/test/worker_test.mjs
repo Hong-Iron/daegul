@@ -44,7 +44,7 @@ check('second player ranks 2nd', [st, r.rank], [200, 2]);
 [st, r] = await run(good('김민수', 100, 1), '3.3.3.3');
 check('same IP within 5 s refused', [st, r.why], [400, 'too often']);
 [st, r] = await run(good('홍 철', 100, 1), '4.4.4.4');
-check('lower score keeps the best (space ignored in the name key)', [st, r.best], [200, 1000]);
+check('lower score keeps the best (space ignored in the name key), and ranks only against others (김민수 600 is the only one above)', [st, r.best, r.rank], [200, 1000, 2]);
 [st, r] = await run(good('HongIron', 2000, 12), '5.5.5.5');
 check('higher score takes 1st', [st, r.rank], [200, 1]);
 const b = await get('/board?scope=all');

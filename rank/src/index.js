@@ -41,10 +41,11 @@ export function checkRun(body) {
   return { ok: true, name: nm.name, key: nameKey(nm.name), score, picks, arrived, last, secs, dia };
 }
 
-async function rankOf(env, scope, day, score) {
+// where a score would stand among everyone else's best (your own better runs don't push you down)
+async function rankOf(env, scope, day, score, key) {
   const q = scope === 'today'
-    ? env.DB.prepare('SELECT COUNT(*) AS n FROM best_day WHERE day = ?1 AND score > ?2').bind(day, score)
-    : env.DB.prepare('SELECT COUNT(*) AS n FROM best WHERE score > ?1').bind(score);
+    ? env.DB.prepare('SELECT COUNT(*) AS n FROM best_day WHERE day = ?1 AND score > ?2 AND key != ?3').bind(day, score, key)
+    : env.DB.prepare('SELECT COUNT(*) AS n FROM best WHERE score > ?1 AND key != ?2').bind(score, key);
   return (await q.first('n')) + 1;
 }
 
@@ -69,7 +70,7 @@ export async function addRun(env, body, ip, nowMs = Date.now()) {
       WHERE excluded.score > best_day.score`).bind(day, r.key, r.name, r.score, r.arrived, r.last, at),
   ]);
   const best = await env.DB.prepare('SELECT score FROM best WHERE key = ?1').bind(r.key).first('score');
-  return { ok: true, rank: await rankOf(env, 'all', day, r.score), today: await rankOf(env, 'today', day, r.score), best };
+  return { ok: true, rank: await rankOf(env, 'all', day, r.score, r.key), today: await rankOf(env, 'today', day, r.score, r.key), best };
 }
 
 export async function board(env, scope, nowMs = Date.now()) {
@@ -85,7 +86,7 @@ export async function me(env, name, scope, nowMs = Date.now()) {
     ? await env.DB.prepare('SELECT score, arrived, last FROM best_day WHERE day = ?1 AND key = ?2').bind(day, key).first()
     : await env.DB.prepare('SELECT score, arrived, last FROM best WHERE key = ?1').bind(key).first();
   if (!row) return { rank: null };
-  return { rank: await rankOf(env, scope, day, row.score), score: row.score, arrived: row.arrived, last: row.last };
+  return { rank: await rankOf(env, scope, day, row.score, key), score: row.score, arrived: row.arrived, last: row.last };
 }
 
 export default {
