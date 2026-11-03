@@ -30,6 +30,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #dia { margin-top: 6px; font-size: 14px; font-weight: 700; }
 #dia b { color: var(--acc); }
 #side { text-align: right; font-size: 14px; font-weight: 700; line-height: 1.5; }
+#pauseBtn { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-bottom: 4px;
+  border: 0; border-radius: 8px; background: rgba(22,20,26,.62); cursor: pointer; padding: 0; }
+#pauseBtn i { display: block; width: 4px; height: 14px; background: var(--ink); border-radius: 1px; margin: 0 2px; }
+#pause h2 { margin: 0 0 16px; font-size: 26px; text-align: center; }
 #dash { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 4px; background: var(--acc); color: #1b1408; font-size: 12px; text-shadow: none; }
 #dash.cool { background: rgba(22,20,26,.55); color: var(--mute); }
 #nav { position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 10px); transform: translateX(-50%); text-align: center; width: 136px; }
@@ -125,7 +129,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
       <div id="scorebox" class="sh"><span>점수</span><div id="score" class="big">0</div></div>
       <div id="dia" class="sh">지름 1.00 m · <b>캔급</b></div>
     </div>
-    <div id="side" class="sh"><div id="time">0:00</div><div id="arr">도착 0곳</div><div id="dash">돌진</div></div>
+    <div id="side" class="sh"><button id="pauseBtn" aria-label="잠깐 멈추기"><i></i><i></i></button><div id="time">0:00</div><div id="arr">도착 0곳</div><div id="dash">돌진</div></div>
   </div>
   <div id="nav" class="sh"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3 L41 37 L24 29 L7 37 Z" fill="#ffa620" stroke="#1b1408" stroke-width="2.5" stroke-linejoin="round"/></svg><div><b id="navName"></b><span id="navDist"></span></div></div>
   <div id="sbox" class="sh"><span>속도</span><div id="sbar"><i></i></div></div>
@@ -135,6 +139,15 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 <div id="warn" class="big">멈추면 끝!</div>
 <div id="joy" class="rest" hidden><i></i></div>
 <div id="mini" hidden><div id="miniName"></div><canvas id="miniC"></canvas></div>
+
+<div id="pause" class="layer" hidden>
+  <div class="panel">
+    <h2 class="big">잠깐 멈춤</h2>
+    <button class="btn" id="resume">계속하기</button>
+    <button class="btn sub" id="restart">처음부터 다시</button>
+    <button class="btn sub" id="quit">그만하고 결과 보기</button>
+  </div>
+</div>
 
 <div id="cards" class="layer" hidden>
   <div class="panel">
@@ -881,7 +894,7 @@ function resetGame() {
     mode: 'start', t: 0, r: 0.5, V: volOf(0.5), maxD: 1, x: 0, z: START_Z, vx: 0, vz: 3,
     picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
     lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
-    camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, pendingCards: 0,
+    camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, quit: false, pendingCards: 0,
     boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0,
   });
 }
@@ -1333,8 +1346,9 @@ function step(dt) {
   }
   const dash = STAT.dash(lv.dash);
   S.boost = Math.max(0, S.boost - dt); S.boostCd = Math.max(0, S.boostCd - dt);
-  let vmax = (15 + 3.4 * Math.pow(r, 0.75)) * dash;
-  const acc = (20 + 4 * Math.pow(r, 0.8)) * dash;
+  // top speed and push grow in step with the ball, so on screen it feels just as quick when it is huge
+  let vmax = (15 + 3.2 * r) * dash;
+  const acc = (24 + 5 * r) * dash;
   if (S.boostReq) {
     S.boostReq = false;
     if (S.boostCd <= 0) {
@@ -1352,7 +1366,7 @@ function step(dt) {
     const along = S.vx * ax + S.vz * az, px = S.vx - ax * along, pz = S.vz - az * along, k = Math.exp(-3.5 * mag * dt);
     S.vx = ax * along + px * k; S.vz = az * along + pz * k;
   }
-  S.vz += DOWN * STAT.slope(lv.slope) * dt;
+  S.vz += DOWN * (1 + r / 20) * STAT.slope(lv.slope) * dt;
   const fr = Math.exp(-(mag > 0 ? 0.2 : 0.35) * dt);
   S.vx *= fr; S.vz *= fr;
   let sp = Math.hypot(S.vx, S.vz);
@@ -1377,11 +1391,17 @@ function step(dt) {
     const [qx, qz, nx, nz] = ct;
     const vn = S.vx * nx + S.vz * nz, hit = Math.max(0, -vn);
     if (b.minS <= lim) {
-      // biting needs some speed into the wall and costs speed, so a thick building can still pin the ball
-      if (b.hitCd <= 0 && (hit > 3 || S.boost > 0)) {
+      // touching is enough to bite. Each bite slows the ball only as much as the building outsizes it,
+      // so a big ball ploughs through while a thick building can still pin a small one
+      if (b.hitCd <= 0) {
         b.hitCd = 0.1;
-        if (hitBuilding(b, qx, qz, Math.max(hit, 4), true)) { S.vx *= 0.75; S.vz *= 0.75; S.shake = Math.max(S.shake, 0.25); continue; }
-      }
+        if (hitBuilding(b, qx, qz, Math.max(hit, 4), true)) {
+          const keep = clamp(1.08 - 0.12 * (b.s / lim), 0.8, 0.97);
+          S.vx *= keep; S.vz *= keep;
+          S.shake = Math.max(S.shake, 0.25 / (1 + r / 8));
+          continue;
+        }
+      } else continue;                 // between bites the ball keeps pressing in instead of bouncing off
     } else if (b.hitCd <= 0 && (hit > 5 || (S.boost > 0 && hit > 2))) {
       b.hitCd = 0.3;
       const power = hit * (S.boost > 0 ? 1.5 : 1) * STAT.ram(lv.ram);
@@ -1393,12 +1413,13 @@ function step(dt) {
           nx * rand(2, 7) + tx * rand(-3, 3), rand(3, 8), nz * rand(2, 7) + tz * rand(-3, 3), sc, b.wall);
       }
       sfxThud(hit); if (broke) sfxBig(); vib(25);
-      S.shake = Math.max(S.shake, Math.min(0.9, hit * 0.06));
+      S.shake = Math.max(S.shake, Math.min(0.9, hit * 0.06) / (1 + r / 8));
       if (broke && S.boost > 0) { S.vx *= 0.8; S.vz *= 0.8; continue; }   // a dash smashes straight through
     }
     S.x = qx + nx * (R + 0.01); S.z = qz + nz * (R + 0.01);
     if (vn < 0) {
-      S.vx -= 1.35 * vn * nx; S.vz -= 1.35 * vn * nz;
+      const e = 1 + 0.35 / (1 + r / 8);                 // big balls bounce less
+      S.vx -= e * vn * nx; S.vz -= e * vn * nz;
       if (hit > 14 && S.boost <= 0 && S.picks > 8) dropStuck(Math.min(3, Math.floor(hit / 7)));
     }
   }
@@ -1505,8 +1526,8 @@ function showEnd() {
   S.mode = 'over';
   const sc = score(), best = bestRecord(), isBest = !best || sc > best.s;
   if (isBest) try { localStorage.setItem('degul-course-best', JSON.stringify({ s: sc, a: S.arrived, last: S.last })); } catch {}
-  $('endTitle').textContent = S.win ? '제주까지 다 굴러 왔어요!' : '멈춰 버렸어요';
-  $('endWhy').textContent = S.win ? '전국 대학을 모두 지나왔어요' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
+  $('endTitle').textContent = S.win ? '제주까지 다 굴러 왔어요!' : S.quit ? '여기까지 굴렀어요' : '멈춰 버렸어요';
+  $('endWhy').textContent = S.win ? '전국 대학을 모두 지나왔어요' : S.quit ? '' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
   $('eScore').textContent = sc.toLocaleString();
   $('eArr').textContent = `${S.arrived}곳`;
   $('eDia').textContent = `${fmtD(S.maxD)} m`;
@@ -1661,12 +1682,37 @@ function rankOnEnd() {
   $('nameBox').hidden = !!playerName && !BOT.on;
   showMine('');
   validateName();
-  if (playerName && !BOT.on) submitRun(playerName);
+  // a run quit in its first seconds is not worth a ranking row
+  if (playerName && !BOT.on && S.t >= 3 && score() > 0) submitRun(playerName);
   loadRank();
 }
 $('again').onclick = async () => { initAudio(); $('end').hidden = true; newOrder(); await prepare(); startGame(); };
 $('share').onclick = () => shareCard();
 addEventListener('pointerdown', () => initAudio());
+
+// ============ pause
+function pause() {
+  if (S.mode !== 'play') return;
+  S.mode = 'pause';
+  input.active = false; input.x = input.y = 0; joy.hidden = true;
+  $('pause').hidden = false;
+  if (AC) AC.suspend();
+}
+function resume() {
+  if (S.mode !== 'pause') return;
+  $('pause').hidden = true;
+  S.mode = 'play'; joy.hidden = false; joyRest();
+  last = performance.now();
+  if (AC) AC.resume();
+}
+$('pauseBtn').addEventListener('pointerdown', (e) => e.stopPropagation());
+$('pauseBtn').onclick = pause;
+$('resume').onclick = resume;
+$('restart').onclick = async () => { $('pause').hidden = true; if (AC) AC.resume(); newOrder(); await prepare(); startGame(); };
+$('quit').onclick = () => { $('pause').hidden = true; if (AC) AC.resume(); S.quit = true; joy.hidden = true; $('mini').hidden = true; showEnd(); };
+// leaving the app or tab pauses the run
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' || e.key === 'p') { if (S.mode === 'play') pause(); else if (S.mode === 'pause') resume(); } });
 
 // ============ main loop
 let last = performance.now(), fpsAcc = 0, fpsN = 0;
