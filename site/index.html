@@ -55,6 +55,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #banner small { display: block; font-size: 22px; color: var(--acc); margin-top: 6px; }
 
 #joy { position: fixed; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; border: 2px solid rgba(244,239,230,.45); pointer-events: none; }
+/* resting place while no finger is down: bottom middle */
+#joy.rest { left: 50%; top: auto; bottom: calc(env(safe-area-inset-bottom) + 34px); margin: 0 0 0 -56px; opacity: .6; }
+#mini { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); width: 100px; padding: 6px; background: rgba(22,20,26,.62); border-radius: 8px; pointer-events: none; }
+#mini canvas { display: block; width: 100px; height: 100px; }
+#miniName { font-size: 11px; font-weight: 700; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #joy i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(244,239,230,.55); }
 
 .layer { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(16,14,20,.72); z-index: 10; }
@@ -95,10 +100,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 .card { display: block; width: 100%; text-align: left; background: #2c2832; border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-top: 10px;
   color: var(--ink); font-family: inherit; cursor: pointer; }
 .card b { font-size: 17px; }
-.card .lv { float: right; color: var(--acc); font-size: 13px; font-weight: 700; }
+.card .lv { float: right; color: var(--acc); font-size: 14px; font-weight: 800; }
 .card div { margin-top: 4px; font-size: 13px; color: var(--mute); line-height: 1.45; }
-.card .up { font-size: 15px; font-weight: 700; color: var(--ink); }
-.card .up em { font-style: normal; color: var(--acc); }
+.card .lv em { font-style: normal; font-size: 17px; }
 .card:active { border-color: var(--acc); }
 #end h2 { margin: 0; font-size: 26px; text-align: center; color: var(--acc); }
 #end .why { text-align: center; color: var(--mute); font-size: 13px; margin: 6px 0 16px; }
@@ -129,7 +133,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 <div id="toast"></div>
 <div id="banner" class="big"></div>
 <div id="warn" class="big">멈추면 끝!</div>
-<div id="joy" hidden><i></i></div>
+<div id="joy" class="rest" hidden><i></i></div>
+<div id="mini" hidden><div id="miniName"></div><canvas id="miniC"></canvas></div>
 
 <div id="cards" class="layer" hidden>
   <div class="panel">
@@ -701,6 +706,7 @@ async function loadSeg(c) {
   c.blds = []; c.objs = [];
   d.buildings.forEach((src, i) => { const b = makeBuilding(c, src, i); if (b) c.blds.push(b); });
   c.ground = makeGround(c, d);
+  miniBase(c, d);
   placeProps(c, d);
   flushAttrs(PM);
   c.loaded = true; c.loading = false;
@@ -716,7 +722,7 @@ function unloadSeg(c) {
   for (let i = flying.length - 1; i >= 0; i--) if (flying[i].seg === c) flying.splice(i, 1);
   scene.remove(c.ground);
   c.ground.geometry.dispose(); c.ground.material.map.dispose(); c.ground.material.dispose();
-  c.blds = []; c.objs = []; c.ground = null;
+  c.blds = []; c.objs = []; c.ground = null; c.mini = null;
 }
 function stream() {
   for (const c of [...LOADED]) if (c.ze + BEHIND < S.z) unloadSeg(c);
@@ -725,6 +731,57 @@ function stream() {
     if (c.zs - S.z > AHEAD) break;
     if (!c.loaded && !c.loading) loadSeg(c);
   }
+}
+
+// ============ minimap: the campus the ball is in, turned half a circle so the way down the course points up
+// (the camera looks down the course, so left and right on the minimap match the screen)
+const mini = $('miniC'), mctx = mini.getContext('2d');
+mini.width = mini.height = Math.round(100 * Math.min(2, devicePixelRatio || 1));
+function miniBase(c, d) {
+  const W = mini.width, cv = document.createElement('canvas');
+  cv.width = cv.height = W;
+  const g = cv.getContext('2d'), s = (W * 0.9) / Math.max(c.w, c.d, 120);
+  const U = (x) => W / 2 - x * s, V = (z) => W / 2 - z * s;          // campus-local x, z
+  const path = (r) => { g.beginPath(); r.forEach(([x, z], i) => (i ? g.lineTo(U(x), V(z)) : g.moveTo(U(x), V(z)))); };
+  if (d.campus.length) { g.fillStyle = '#56664a'; path(d.campus); g.closePath(); g.fill(); }
+  const LC = { wood: '#3f5e35', park: '#5f7f4a', pitch: '#3f7a48', water: '#3f6f92', res: '#6a645b' };
+  for (const l of d.lands) for (const r of l.r) { g.fillStyle = LC[l.k] || '#55604a'; path(r); g.closePath(); g.fill(); }
+  g.strokeStyle = '#8d8c90'; g.lineCap = g.lineJoin = 'round';
+  for (const r of d.roads) { g.lineWidth = Math.max(1, (CARROADS.has(r.k) ? 8 : 4) * s); path(r.p); g.stroke(); }
+  c.mini = { cv, s };
+}
+let miniT = 0, miniSeg = null;
+function drawMini(dt) {
+  if ((miniT -= dt) > 0) return;
+  miniT = 1 / 15;
+  const c = COURSE[segIndexAt(S.z)], box = $('mini');
+  if (!c || !c.loaded || !c.mini) { box.hidden = true; return; }
+  box.hidden = false;
+  if (miniSeg !== c) { miniSeg = c; $('miniName').textContent = c.label; }
+  const W = mini.width, s = c.mini.s, U = (x) => W / 2 - x * s, V = (z) => W / 2 - (z - c.zc) * s;
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.clearRect(0, 0, W, W);
+  mctx.drawImage(c.mini.cv, 0, 0);
+  // every block column still standing, so bites out of buildings show
+  mctx.fillStyle = '#ddd5c6';
+  for (const b of c.blds) {
+    if (!b.alive) continue;
+    for (const col of b.cols) {
+      const p = col[0];
+      if (p.state !== 'intact') continue;
+      mctx.setTransform(b.cos, b.sin, -b.sin, b.cos, U(p.hx), V(p.hz));
+      mctx.fillRect((-p.sx * s) / 2, (-p.sz * s) / 2, p.sx * s + 0.5, p.sz * s + 0.5);
+    }
+  }
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  const bx = clamp(U(S.x), 4, W - 4), by = clamp(V(S.z), 4, W - 4), br = Math.max(W / 40, S.r * s);
+  const sp = Math.hypot(S.vx, S.vz);
+  if (sp > 1) {
+    mctx.strokeStyle = '#ffa620'; mctx.lineWidth = W / 60;
+    mctx.beginPath(); mctx.moveTo(bx, by); mctx.lineTo(bx - (S.vx / sp) * (br + W / 10), by - (S.vz / sp) * (br + W / 10)); mctx.stroke();
+  }
+  mctx.fillStyle = '#ffa620'; mctx.strokeStyle = '#16141a'; mctx.lineWidth = W / 80;
+  mctx.beginPath(); mctx.arc(bx, by, br, 0, 6.2832); mctx.fill(); mctx.stroke();
 }
 
 // ============ ball
@@ -794,14 +851,14 @@ const STAT = {
   twin: (l) => (l ? Math.min(0.6, 0.22 + 0.03 * (l - 1)) : 0),  // helper ball radius, × ball radius
   slope: (l) => 1 + 0.1 * l,                                 // pull down the slope
 };
-const pct = (v) => `${Math.round(v * 100)}%`;
+// cards show only levels; the numbers above stay behind the scenes
 const CARDS = [
-  { id: 'magnet', name: '자석', what: '근처 물건을 끌어오는 거리', show: (l) => `+${pct(STAT.magnet(l))}` },
-  { id: 'sticky', name: '끈끈이', what: '붙는 물건 크기(공 지름의)', show: (l) => pct(STAT.sticky(l)), max: 20 },
-  { id: 'dash', name: '질주', what: '최고 속도와 가속', show: (l) => `+${pct(STAT.dash(l) - 1)}` },
-  { id: 'ram', name: '돌진', what: '건물을 부수는 힘', show: (l) => `+${pct(STAT.ram(l) - 1)}` },
-  { id: 'twin', name: '쌍둥이 공', what: '곁을 돌며 주워 주는 작은 공(공 크기의)', show: (l) => (l ? pct(STAT.twin(l)) : '없음'), max: 14 },
-  { id: 'slope', name: '비탈길', what: '내리막에서 붙는 속도', show: (l) => `+${pct(STAT.slope(l) - 1)}` },
+  { id: 'magnet', name: '자석', what: () => '근처 물건을 더 멀리서 끌어와요' },
+  { id: 'sticky', name: '끈끈이', what: () => '더 큰 물건도 붙어요', max: 20 },
+  { id: 'dash', name: '질주', what: () => '더 빠르게 굴러요' },
+  { id: 'ram', name: '돌진', what: () => '건물을 더 세게 부숴요' },
+  { id: 'twin', name: '쌍둥이 공', what: (l) => (l ? '곁을 도는 작은 공이 커져요' : '작은 공이 곁을 돌며 물건을 주워 줘요'), max: 14 },
+  { id: 'slope', name: '비탈길', what: () => '내리막에서 더 빨라져요' },
 ];
 const canRaise = (c) => !c.max || S.lv[c.id] < c.max;
 // stuck things leave gaps, so the ball gains more volume than the things themselves; less so as it grows,
@@ -840,18 +897,30 @@ stage.addEventListener('pointerdown', (e) => {
   // a second tap right after the first one, near the same spot, is a dash
   if (performance.now() - input.upT < 300 && Math.hypot(e.clientX - input.ux, e.clientY - input.uy) < 60) S.boostReq = true;
   input.active = true; input.id = e.pointerId; input.ox = e.clientX; input.oy = e.clientY; input.x = input.y = 0;
+  joy.classList.remove('rest');
   joy.style.left = e.clientX + 'px'; joy.style.top = e.clientY + 'px'; knob.style.transform = '';
-  joy.hidden = false;
 });
+// the stick sits under the finger; if the finger goes past the rim, the stick slides along behind it
+const JOY_R = 56;
 addEventListener('pointermove', (e) => {
   if (!input.active || e.pointerId !== input.id) return;
-  const dx = e.clientX - input.ox, dy = e.clientY - input.oy, L = Math.hypot(dx, dy), k = L > 56 ? 56 / L : 1;
+  let dx = e.clientX - input.ox, dy = e.clientY - input.oy;
+  const L = Math.hypot(dx, dy);
+  if (L > JOY_R) {
+    input.ox = e.clientX - (dx / L) * JOY_R; input.oy = e.clientY - (dy / L) * JOY_R;
+    dx = e.clientX - input.ox; dy = e.clientY - input.oy;
+    joy.style.left = input.ox + 'px'; joy.style.top = input.oy + 'px';
+  }
   input.x = dx; input.y = dy;
-  knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
 });
+function joyRest() {
+  joy.classList.add('rest');
+  joy.style.left = joy.style.top = ''; knob.style.transform = '';
+}
 const endPointer = (e) => {
   if (e.pointerId !== input.id) return;
-  input.active = false; input.x = input.y = 0; joy.hidden = true;
+  input.active = false; input.x = input.y = 0; joyRest();
   input.upT = performance.now(); input.ux = e.clientX; input.uy = e.clientY;
 };
 addEventListener('pointerup', endPointer);
@@ -1200,7 +1269,7 @@ function openCards() {
   opts.forEach((c) => {
     const l = S.lv[c.id], b = document.createElement('button');
     b.className = 'card';
-    b.innerHTML = `<b>${c.name}</b><span class="lv">Lv.${l} → ${l + 1}</span><div>${c.what}</div><div class="up">${c.show(l)} → <em>${c.show(l + 1)}</em></div>`;
+    b.innerHTML = `<b>${c.name}</b><span class="lv">Lv.${l} → <em>${l + 1}</em>${c.max && l + 1 >= c.max ? ' (최대)' : ''}</span><div>${c.what(l)}</div>`;
     b.onclick = () => chooseCard(c.id);
     list.appendChild(b);
   });
@@ -1211,6 +1280,7 @@ function chooseCard(id) {
   sfxClick();
   $('cards').hidden = true;
   S.mode = 'play';
+  joy.hidden = false; joyRest();
   S.pendingCards--;
   if (S.pendingCards > 0) openCards();
 }
@@ -1259,7 +1329,7 @@ function step(dt) {
     if (keys.has('arrowleft') || keys.has('a')) ix -= 80;
     if (keys.has('arrowright') || keys.has('d')) ix += 80;
     const L = Math.hypot(ix, iy);
-    if (L > 6) { mag = Math.min(1, L / 60); ax = (fx * -iy + rx * ix) / L; az = (fz * -iy + rz * ix) / L; }
+    if (L > 6) { mag = Math.min(1, L / 48); ax = (fx * -iy + rx * ix) / L; az = (fz * -iy + rz * ix) / L; }
   }
   const dash = STAT.dash(lv.dash);
   S.boost = Math.max(0, S.boost - dt); S.boostCd = Math.max(0, S.boostCd - dt);
@@ -1382,7 +1452,7 @@ function step(dt) {
   }
   if (S.stall >= STALL_T || S.nextArr >= COURSE.length && S.z > COURSE[COURSE.length - 1].ze) {
     S.win = S.stall < STALL_T;
-    S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true;
+    S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true; $('mini').hidden = true;
   } else if (S.pendingCards > 0 && S.mode === 'play') {
     if (BOT.on) { while (S.pendingCards > 0) { const ok = CARDS.filter(canRaise); S.lv[ok[Math.floor(Math.random() * ok.length)].id]++; S.pendingCards--; } }
     else openCards();
@@ -1513,6 +1583,7 @@ function startGame() {
   S.mode = 'play';
   S.camDist = 7 + S.r * 5.5;
   $('end').hidden = true; $('hud').hidden = false;
+  joy.hidden = false; joyRest(); input.active = false; input.x = input.y = 0;
   last = performance.now();
   if (S.r * 2 > 1.5) toast(`넓은 ${COURSE[0].label}에서 출발해서 공을 ${fmtD(S.r * 2)} m로 키웠어요`, 2600);
   hudCache = '';
@@ -1623,6 +1694,7 @@ function frame(now) {
     rollFilter.frequency.setTargetAtTime(160 + 700 / (1 + S.r * 0.25) + sp * 6, AC.currentTime, 0.1);
   }
   if (S.mode === 'play' || S.mode === 'ending') updateHud();
+  if (S.mode === 'play') drawMini(dt);
   flush();
   renderer.render(scene, camera);
   // lower the resolution when frames are slow
