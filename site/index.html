@@ -782,6 +782,7 @@ function startChallenge(c) {
     ch.title = `${nx.label}까지 ${ch.limit}초 안에`;
   }
   S.chal = ch;
+  note('chal', { type: ch.type, goal: ch.goal, limit: ch.limit });
   banner(`도전!<small>${ch.title}</small>`, 1800);
   sfxLevel();
 }
@@ -789,6 +790,7 @@ function endChallenge(ok) {
   const ch = S.chal;
   S.chal = null;
   $('chal').hidden = true;
+  note(ok ? 'chal-ok' : 'chal-fail', { type: ch.type, got: ch.got });
   if (ok) { S.bonus += 300; S.pendingCards++; banner('도전 성공!<small>+300 · 강화 하나</small>', 1600); sfxArrive(); vib([20, 30, 20]); }
   else if (ch.type !== 'wall') toast('도전 실패… 다음 기회에', 1600);
 }
@@ -1026,10 +1028,12 @@ function resetGame() {
     picks: 0, arrived: 0, nextArr: 0, last: null, nextPulse: 100, pulseT: -9, pulseLog: [], stall: 0, progX: 0, progZ: START_Z, biggest: null, grade: 0, cardIx: 0,
     lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
     camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, quit: false, pendingCards: 0,
-    boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false,
+    boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false, events: [],
   });
 }
 const score = () => S.picks + S.arrived * 100 + S.bonus;
+// what happened in this run, for tests: [{t, e, ...}]
+const note = (e, more = {}) => { if (S.events.length < 300) S.events.push({ t: +S.t.toFixed(1), e, d: +(2 * S.r).toFixed(1), ...more }); };
 // the score box pops every 100 points, every 1,000 from 10,000, every 10,000 from 100,000, and so on
 const pulseStep = (sc) => (sc < 10000 ? 100 : 10 ** (Math.floor(Math.log10(sc)) - 1));
 
@@ -1460,6 +1464,7 @@ function botInput(dt) {
 }
 function arrive(c) {
   S.arrived++; S.last = c.label;
+  note('arrive', { c: c.label, boss: !!c.boss });
   if (c.boss) { banner(`보스 ${c.label}!<small>${c.target ? `${josa(c.target.name, '을', '를')} 무너뜨려라` : ''} +100</small>`, 2200); sfxBig(); vib([40, 40, 40]); return; }
   banner(`${c.label} 도착!<small>+100</small>`);
   sfxArrive(); vib([20, 30, 20]);
@@ -1591,10 +1596,10 @@ function step(dt) {
   updateChallenge();
   const boss = COURSE[COURSE.length - 1];
   if (boss.target && !S.clear && targetDown(boss.target) >= 0.85) {
-    S.clear = true; S.bonus += 1000; S.win = true;
+    S.clear = true; S.bonus += 1000; S.win = true; note('clear');
     banner(`${curStage().name} 클리어!<small>+1,000</small>`, 2400); sfxLevel(); vib([60, 40, 60]);
   }
-  if (!S.clear && S.arrived === COURSE.length && S.z > boss.ze + 30) S.missed = true;
+  if (!S.clear && S.arrived === COURSE.length && S.z > boss.ze + 30 && !S.missed) { S.missed = true; note('missed', { down: boss.target ? +targetDown(boss.target).toFixed(2) : null }); }
   const sc = score();
   if (sc >= S.nextPulse && S.t - S.pulseT > 0.3) {
     S.pulseT = S.t; pulseScore();
@@ -1617,6 +1622,7 @@ function step(dt) {
   }
   if (S.stall >= STALL_T || S.missed || (S.clear && (S.endT += dt) > 2.4)) {
     S.win = S.clear;
+    if (S.stall >= STALL_T) { const c = COURSE[segIndexAt(S.z)]; note('stall', { at: S.z > c.ze ? `${c.label} 뒤 ${c.chal || ''}` : c.label, x: Math.round(S.x), chal: S.chal && S.chal.type }); }
     S.mode = 'ending'; S.endT = 0; sfxEnd(); input.active = false; joy.hidden = true; $('mini').hidden = true; $('chal').hidden = true;
   } else if (S.pendingCards > 0 && S.mode === 'play') {
     if (BOT.on) { while (S.pendingCards > 0) { const ok = CARDS.filter(canRaise); S.lv[ok[Math.floor(Math.random() * ok.length)].id]++; S.pendingCards--; } }
@@ -1933,6 +1939,7 @@ if (S.r * 2 <= 1.5) toast('화면을 좌우로 끌어서 방향을 틀어요', 2
 // ============ test handle
 window.__degul = {
   S, COURSE, LOADED, KINDS, CARDS, STUCKP, ballRoot, ballSpin,
+  setStage: (id) => { const i = STAGES.findIndex((x) => x.id === id); if (i >= 0) { stageIx = i; newOrder(); } },
   start: async (first) => { if (first) newOrder(first); await prepare(); startGame(); },
   bot: (on = true) => { BOT.on = on; },
   // run the game logic for `sec` seconds without drawing; campuses still stream in (await between chunks)
