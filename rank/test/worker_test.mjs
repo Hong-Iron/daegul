@@ -12,7 +12,9 @@ const persist = mkdtempSync(join(tmpdir(), 'degul-rank-test-'));
 const proxy = await getPlatformProxy({ configPath: config, persist: { path: join(persist, 'v3') } });
 const db = proxy.env.DB;
 for (const s of statements(readFileSync(new URL('schema.sql', root), 'utf8'))) await db.prepare(s).run();
-const w = await unstable_startWorker({ config, dev: { persist, server: { port: 0 }, inspector: false, watch: false, logLevel: 'error' } });
+const KEY = 'test-key-only-for-these-checks';
+const w = await unstable_startWorker({ config, bindings: { TOKEN_KEY: { type: 'secret_text', value: KEY } },
+  dev: { persist, server: { port: 0 }, inspector: false, watch: false, logLevel: 'error' } });
 await w.ready;
 
 let ok = true;
@@ -20,55 +22,92 @@ const check = (name, got, want) => {
   const good = JSON.stringify(got) === JSON.stringify(want); ok &&= good;
   console.log(good ? 'OK  ' : 'FAIL', name, JSON.stringify(got), good ? '' : `(want ${JSON.stringify(want)})`);
 };
-const run = async (body, ip = '1.1.1.1') => {
-  const r = await w.fetch('http://rank.test/run', { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify(body) });
+const post = async (path, body, ip = '1.1.1.1') => {
+  const r = await w.fetch(`http://rank.test${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip }, body: JSON.stringify(body) });
   return [r.status, await r.json()];
 };
 const get = async (path) => (await w.fetch(`http://rank.test${path}`)).json();
-const good = (name, picks, arrived, o = {}) => {
-  const bonus = o.bonus ?? 0;
-  return { stage: o.stage ?? 'seoul', name, score: picks + arrived * 100 + bonus, picks, arrived, bonus, clear: !!o.clear, last: o.last ?? '한림대', secs: o.secs ?? 120, dia: 12.3 };
+// a ticket signed like the server does, given `ago` seconds back (the server only hands out fresh ones)
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+async function ticket(stage, ago, key = KEY) {
+  const body = `${stage}.${Date.now() - ago * 1000}.${hex(crypto.getRandomValues(new Uint8Array(8)))}`;
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return `${body}.${hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(body)))}`;
+}
+const LAST = { seoul: '덕성여자대', gyeongnam: '울산대' }, BOSS = { seoul: '서울대 관악' };
+const good = async (name, picks, arrived, o = {}) => {
+  const bonus = o.bonus ?? 0, stage = o.stage ?? 'seoul', secs = o.secs ?? 120;
+  return { tok: o.tok ?? (await ticket(stage, secs + 5)), stage, name, score: picks + arrived * 100 + bonus, picks, arrived, bonus, clear: !!o.clear,
+    last: o.last ?? LAST[stage], secs, dia: 12.3 };
 };
+const run = async (body, ip) => post('/run', await body, ip);
 
 const opt = await w.fetch('http://rank.test/run', { method: 'OPTIONS' });
 check('preflight 204 + CORS', [opt.status, opt.headers.get('access-control-allow-origin')], [204, '*']);
-let [st, r] = await run(good('홍철', 500, 5));
+
+// tickets
+let [st, r] = await post('/start', { stage: 'seoul' });
+check('a ticket for a run', [st, /^seoul\.\d{13}\.[0-9a-f]{16}\.[0-9a-f]{64}$/.test(r.tok)], [200, true]);
+const fresh = r.tok;
+check('no ticket for an unknown city', (await post('/start', { stage: 'mars' }))[0], 400);
+[st, r] = await run(good('홍철', 500, 5, { tok: fresh }));
+check('a 2-minute run on a ticket given just now', [st, r.why], [400, 'time']);
+[st, r] = await run(good('홍철', 500, 5, { tok: undefined, secs: 120 }).then((b) => ({ ...b, tok: undefined })));
+check('no ticket refused', [st, r.why], [400, 'ticket']);
+[st, r] = await run(good('홍철', 500, 5, { tok: await ticket('seoul', 200, 'someone-elses-key') }));
+check('forged ticket refused', [st, r.why], [400, 'ticket']);
+[st, r] = await run(good('홍철', 500, 5, { tok: await ticket('gyeongnam', 200) }));
+check('ticket for another city refused', [st, r.why], [400, 'ticket']);
+
+[st, r] = await run(good('홍철', 500, 5));
 check('first run', [st, r.ok, r.rank, r.today, r.best], [200, true, 1, 1, 1000]);
+const used = await good('홍철', 400, 4);
+await run(used, '8.8.8.8');
+[st, r] = await run(used, '9.9.9.9');
+check('one ticket, one record', [st, r.why], [400, 'used']);
 [st, r] = await run(good('씨1발', 10, 1), '2.2.2.2');
 check('bad name refused', [st, r.ok, r.why], [400, false, '쓸 수 없는 이름이에요']);
-[st, r] = await run({ ...good('김민수', 10, 1), score: 999999 }, '2.2.2.2');
+[st, r] = await run((async () => ({ ...(await good('김민수', 10, 1)), score: 999999 }))(), '2.2.2.2');
 check('score must equal picks + arrived x 100 + bonus', [st, r.why], [400, 'score']);
 [st, r] = await run(good('김민수', 10, 8), '2.2.2.2');
 check('at most 7 campuses in a run', [st, r.why], [400, 'arrived']);
 [st, r] = await run(good('김민수', 60 * 600, 3, { secs: 60 }), '2.2.2.2');
 check('too many picks for the time', [st, r.why], [400, 'picks']);
-[st, r] = await run(good('김민수', 10, 3, { bonus: 250 }), '2.2.2.2');
-check('bonus comes in hundreds', [st, r.why], [400, 'bonus']);
-[st, r] = await run(good('김민수', 10, 3, { bonus: 1900 }), '2.2.2.2');
-check('more than 6 challenges (1,800) needs a clear', [st, r.why], [400, 'bonus']);
+[st, r] = await run(good('김민수', 60000, 2, { secs: 3000 }), '2.2.2.2');
+check('more picks than two campuses of the city hold', [st, r.why], [400, 'picks']);
+[st, r] = await run(good('김민수', 10, 3, { bonus: 200 }), '2.2.2.2');
+check('bonus comes in 300s', [st, r.why], [400, 'bonus']);
+[st, r] = await run(good('김민수', 10, 2, { bonus: 900 }), '2.2.2.2');
+check('no more challenges won than campuses reached', [st, r.why], [400, 'bonus']);
 [st, r] = await run(good('김민수', 10, 5, { bonus: 1300, clear: true }), '2.2.2.2');
 check('a clear needs all 7 campuses', [st, r.why], [400, 'arrived']);
 [st, r] = await run(good('김민수', 10, 1, { stage: 'mars' }), '2.2.2.2');
 check('unknown city refused', [st, r.why], [400, 'stage']);
+[st, r] = await run(good('김민수', 10, 3, { last: '울산대' }), '2.2.2.2');
+check('last campus from another city refused', [st, r.why], [400, 'last']);
+[st, r] = await run(good('김민수', 10, 7, { last: '덕성여자대' }), '2.2.2.2');
+check('7 campuses end at the boss', [st, r.why], [400, 'last']);
+[st, r] = await run(good('김민수', 10, 4, { last: BOSS.seoul }), '2.2.2.2');
+check('the boss is the 7th, not the 4th', [st, r.why], [400, 'last']);
 [st, r] = await run(good('김민수', 300, 3), '3.3.3.3');
 check('second player ranks 2nd', [st, r.rank], [200, 2]);
 [st, r] = await run(good('김민수', 100, 1), '3.3.3.3');
 check('same IP within 5 s refused', [st, r.why], [400, 'too often']);
 [st, r] = await run(good('홍 철', 100, 1), '4.4.4.4');
 check('lower score keeps the best (space ignored in the name key), ranked only against others', [st, r.best, r.rank], [200, 1000, 2]);
-[st, r] = await run(good('HongIron', 2000, 7, { bonus: 1900, clear: true, last: '서울대 관악' }), '5.5.5.5');
+[st, r] = await run(good('HongIron', 2000, 7, { bonus: 1900, clear: true, last: BOSS.seoul }), '5.5.5.5');
 check('a cleared run takes 1st', [st, r.rank], [200, 1]);
 [st, r] = await run(good('부산사람', 50, 2, { stage: 'gyeongnam' }), '7.7.7.7');
 check('another city has its own ranking', [st, r.rank], [200, 1]);
 const b = await get('/board?stage=seoul&scope=all');
-check('Seoul board', b.rows.map((x) => [x.name, x.score, x.last, x.clear]), [['HongIron', 4600, '서울대 관악', 1], ['홍철', 1000, '한림대', 0], ['김민수', 600, '한림대', 0]]);
+check('Seoul board', b.rows.map((x) => [x.name, x.score, x.last, x.clear]), [['HongIron', 4600, '서울대 관악', 1], ['홍철', 1000, '덕성여자대', 0], ['김민수', 600, '덕성여자대', 0]]);
 check('Busan board', (await get('/board?stage=gyeongnam&scope=all')).rows.map((x) => x.name), ['부산사람']);
 check('today board', (await get('/board?stage=seoul&scope=today')).rows.length, 3);
-check('me', await get(`/me?stage=seoul&name=${encodeURIComponent('홍철')}&scope=all`), { rank: 2, score: 1000, arrived: 5, last: '한림대' });
+check('me', await get(`/me?stage=seoul&name=${encodeURIComponent('홍철')}&scope=all`), { rank: 2, score: 1000, arrived: 5, last: '덕성여자대' });
 [st, r] = await run(good('없는학교', 10, 1, { last: '가짜대학' }), '6.6.6.6');
 check('unknown campus label refused', [st, r.why], [400, 'last']);
 check('me unknown', await get('/me?stage=seoul&name=nobody&scope=all'), { rank: null });
-check('runs kept (5 accepted)', await db.prepare('SELECT COUNT(*) AS n FROM runs').first('n'), 5);
+check('runs kept (6 accepted)', await db.prepare('SELECT COUNT(*) AS n FROM runs').first('n'), 6);
 
 await w.dispose(); await proxy.dispose();
 console.log(ok ? 'ALL CHECKS PASSED' : 'SOME CHECKS FAILED');

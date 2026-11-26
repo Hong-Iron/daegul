@@ -269,7 +269,7 @@ function newOrder(first = null) {
   let z = 0;
   COURSE.forEach((c, i) => {
     c.i = i; c.zs = z; c.zc = z + 20 + c.d / 2; c.ze = z + c.d + 40; c.halfW = Math.max(70, c.w / 2 + SIDE);
-    c.loading = false; c.chalDone = false;
+    c.loading = false; c.chalDone = false; c.gone = false;
     if (i < COURSE.length - 1) {
       if (!kinds.length) kinds = [...CHALLENGES].sort(() => Math.random() - 0.5);
       if (i > 0 && kinds[0] === COURSE[i - 1].chal) kinds.push(kinds.shift());
@@ -936,12 +936,18 @@ function unloadSeg(c) {
   c.ground.geometry.dispose(); c.ground.material.map.dispose(); c.ground.material.dispose();
   c.blds = []; c.objs = []; c.ground = null; c.mini = null;
 }
+// a campus owns the ground up to the end of its challenge stretch, so it stays until the ball is BEHIND past that
+const groundEnd = (c) => c.ze + GAP / 2 + (c.chal ? ZL : 0);
 function stream() {
-  for (const c of [...LOADED]) if (c.ze + BEHIND < S.z) unloadSeg(c);
+  for (const c of [...LOADED]) if (groundEnd(c) + BEHIND < S.z) {
+    unloadSeg(c);
+    // a campus left behind never comes back (rolling back up would bring every eaten thing back): the ground ends there
+    c.gone = true; S.backZ = Math.max(S.backZ, groundEnd(c));
+  }
   for (let i = segIndexAt(S.z); i < COURSE.length; i++) {
     const c = COURSE[i];
     if (c.zs - S.z > AHEAD) break;
-    if (!c.loaded && !c.loading) loadSeg(c);
+    if (!c.loaded && !c.loading && !c.gone) loadSeg(c);
   }
 }
 
@@ -1095,6 +1101,7 @@ function resetGame() {
     lv: { magnet: 0, sticky: 0, dash: 0, ram: 0, twin: 0, slope: 0 },
     camYaw: 0, camDist: 8, recent: [], roll: 0, lump: 0, hitstop: 0, shake: 0, twinA: 0, endT: 0, win: false, quit: false, pendingCards: 0,
     boost: 0, boostCd: 0, boostReq: false, streamT: 0, spRing: 0, bonus: 0, chal: null, clear: false, missed: false, bossEnd: Infinity, events: [],
+    stage: curStage().id, backZ: -Infinity,
   });
 }
 const score = () => S.picks + S.arrived * 100 + S.bonus;
@@ -1604,6 +1611,7 @@ function step(dt) {
   if (S.x < -hw) { S.x = -hw; S.vx = Math.abs(S.vx) * 0.4; }
   if (S.x > hw) { S.x = hw; S.vx = -Math.abs(S.vx) * 0.4; }
   if (S.z < START_Z - 20) { S.z = START_Z - 20; S.vz = Math.abs(S.vz); }
+  if (S.z < S.backZ) { S.z = S.backZ; S.vz = Math.abs(S.vz) * 0.4; }      // where the campuses left behind were
 
   const lim = ratio() * 2 * r;
   // buildings: swallow whole, bite off blocks, smash blocks loose, or bounce
@@ -1852,7 +1860,7 @@ function startSize() {
 async function prepare() {
   // drop whatever is loaded and bring in the first campuses again
   for (const c of [...LOADED]) unloadSeg(c);
-  for (const c of COURSE) { c.loading = false; c.chalDone = false; }
+  for (const c of COURSE) { c.loading = false; c.chalDone = false; c.gone = false; }
   flying.length = 0;
   GRID.clear();
   clearBall();
@@ -1869,11 +1877,23 @@ function startGame() {
   last = performance.now();
   if (S.r * 2 > 1.5) toast(`넓은 ${COURSE[0].label}에서 출발해서 공을 ${fmtD(S.r * 2)} m로 키웠어요`, 2600);
   hudCache = '';
+  getToken();
 }
 // ============ ranking (on the result screen)
 const RANK = QS.get('rank') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8787' : 'https://degul-rank.smash-rank.workers.dev');
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let playerName = '', rankScope = 'today', posted = false;
+// every run asks the server for a ticket as it starts; the server takes a record only with one, and only as long as
+// the run could really have lasted since then
+let runTok = null, tokGen = 0;
+function getToken() {
+  const my = ++tokGen;
+  runTok = null;
+  if (BOT.on) return;
+  api('/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ stage: S.stage }) })
+    .then((r) => { if (my === tokGen && r.tok) runTok = r.tok; }).catch(() => {});
+}
+const runStage = () => STAGES.find((x) => x.id === S.stage) || curStage();
 try { playerName = checkName(localStorage.getItem('degul-name') || '').name || ''; } catch {}
 const saveName = (n) => { playerName = n; try { localStorage.setItem('degul-name', n); } catch {} };
 async function api(path, opt = {}) {
@@ -1886,30 +1906,39 @@ function showMine(html) {
   if (b) b.onclick = () => { $('nameBox').hidden = false; nameIn.value = playerName; validateName(); nameIn.focus(); };
 }
 async function submitRun(name) {
+  if (!runTok) {
+    // without a ticket from the start of the run the server would refuse it; the name is still kept for the next runs
+    posted = true; saveName(name); $('nameBox').hidden = true;
+    showMine(`이번 판은 시작할 때 랭킹 서버에 닿지 않아 올리지 못했어요<button class="link" id="rename">이름 바꾸기</button>`);
+    return;
+  }
   posted = true; $('post').disabled = true;
   showMine('랭킹에 올리는 중…');
   try {
     const r = await api('/run', { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ stage: curStage().id, name, score: score(), picks: S.picks, arrived: S.arrived, bonus: S.bonus, clear: S.clear, last: S.last, dia: +S.maxD.toFixed(2), secs: +S.t.toFixed(1) }) });
+      body: JSON.stringify({ tok: runTok, stage: S.stage, name, score: score(), picks: S.picks, arrived: S.arrived, bonus: S.bonus, clear: S.clear, last: S.last, dia: +S.maxD.toFixed(2), secs: +S.t.toFixed(1) }) });
     if (r.ok) {
       saveName(name); $('nameBox').hidden = true;
-      showMine(`<b>${esc(name)}</b> · ${curStage().name} ${r.rank}위 · 오늘 ${r.today}위<button class="link" id="rename">이름 바꾸기</button>`);
-      loadRank();
+      showMine(`<b>${esc(name)}</b> · ${runStage().name} ${r.rank}위 · 오늘 ${r.today}위<button class="link" id="rename">이름 바꾸기</button>`);
+      loadRank(true);
     } else {
       showMine(r.why === 'too often' ? '조금 뒤에 다시 올릴 수 있어요' : '이 기록은 랭킹에 올리지 못했어요');
       if (r.why === 'too often') { posted = false; validateName(); }
     }
   } catch { showMine('랭킹 서버에 닿지 않아요'); posted = false; validateName(); }
 }
-async function loadRank() {
-  const list = $('rank');
+// fresh: right after posting, skip the browser's copy of the board (the server drops its own on a new record)
+let rankSeq = 0;                     // only the latest request may fill the list
+async function loadRank(fresh = false) {
+  const list = $('rank'), my = ++rankSeq;
   list.innerHTML = '<li class="empty">불러오는 중…</li>';
   try {
-    const { rows } = await api(`/board?scope=${rankScope}&stage=${curStage().id}`), mine = playerName ? nameKey(playerName) : '';
+    const { rows } = await api(`/board?scope=${rankScope}&stage=${curStage().id}`, fresh ? { cache: 'no-store' } : {}), mine = playerName ? nameKey(playerName) : '';
+    if (my !== rankSeq) return;
     list.innerHTML = rows.length ? rows.slice(0, 10).map((r, i) => `<li class="${nameKey(r.name) === mine ? 'me' : ''}"><span class="n">${i + 1}</span>
       <span class="who"><b>${esc(r.name)}</b><span>${r.last ? `${esc(r.last)}까지 · ` : ''}${r.arrived}곳</span></span><span class="sc">${r.score.toLocaleString()}</span></li>`).join('')
       : `<li class="empty">${rankScope === 'today' ? '오늘은' : '아직'} 기록이 없어요. 첫 기록을 남겨 보세요!</li>`;
-  } catch { list.innerHTML = '<li class="empty">랭킹 서버에 닿지 않아요</li>'; }
+  } catch { if (my === rankSeq) list.innerHTML = '<li class="empty">랭킹 서버에 닿지 않아요</li>'; }
 }
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
   rankScope = b.dataset.scope;
@@ -2069,6 +2098,9 @@ window.__degul = {
     return { ms: +((performance.now() - t0) / n).toFixed(2), calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr: pixelRatio };
   },
   finish: () => showEnd(),
+  // how many things each loaded campus holds right after it loads (the ranking server's per-city ceilings come from this)
+  content: () => LOADED.map((c) => ({ code: c.code, stage: c.stage, boss: !!c.boss, objs: c.objs.filter((o) => !o.chal).length,
+    pieces: c.blds.reduce((n, b) => n + (b.hoard ? 0 : b.pieces.length), 0) })),
   cards: () => { S.pendingCards++; openCards(); },
   card: (i) => document.querySelectorAll('.card')[i]?.click(),
 };
