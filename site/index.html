@@ -34,8 +34,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
   border: 0; border-radius: 8px; background: rgba(22,20,26,.62); cursor: pointer; padding: 0; }
 #pauseBtn i { display: block; width: 4px; height: 14px; background: var(--ink); border-radius: 1px; margin: 0 2px; }
 #pause h2 { margin: 0 0 16px; font-size: 26px; text-align: center; }
-#dash { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 4px; background: var(--acc); color: #1b1408; font-size: 12px; text-shadow: none; }
-#dash.cool { background: rgba(22,20,26,.55); color: var(--mute); }
+/* dash button, bottom left where the thumb rests; the ring fills back up while it cools down (--p: 0 → 1) */
+#dashBtn { position: fixed; left: 18px; bottom: calc(env(safe-area-inset-bottom) + 30px); width: 76px; height: 76px; padding: 0; border: 0; border-radius: 50%;
+  pointer-events: auto; cursor: pointer; touch-action: none; font: inherit; text-shadow: none;
+  background: conic-gradient(var(--acc) calc(var(--p, 1) * 360deg), rgba(244,239,230,.22) 0); filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+#dashBtn span { position: absolute; inset: 5px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  background: var(--acc); color: #1b1408; font-size: 21px; transition: transform .06s; }
+#dashBtn.cool span { background: rgba(22,20,26,.78); color: var(--mute); }
+#dashBtn:active span, #dashBtn.hit span { transform: scale(.9); }
+#dashBtn.call { animation: call .8s ease-in-out infinite; }
+@keyframes call { 50% { transform: scale(1.12); } }
 #nav { position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 10px); transform: translateX(-50%); text-align: center; width: 136px; }
 #nav svg { display: block; width: 46px; height: 46px; margin: 0 auto; filter: drop-shadow(0 2px 0 rgba(0,0,0,.4)); transition: transform .08s linear; }
 #nav div { margin-top: 2px; font-size: 12px; font-weight: 700; line-height: 1.3; }
@@ -139,10 +147,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
       <div id="scorebox" class="sh"><span>점수</span><div id="score" class="big">0</div></div>
       <div id="dia" class="sh">지름 1.00 m · <b>캔급</b></div>
     </div>
-    <div id="side" class="sh"><button id="pauseBtn" aria-label="잠깐 멈추기"><i></i><i></i></button><div id="time">0:00</div><div id="arr">도착 0곳</div><div id="dash">돌진</div></div>
+    <div id="side" class="sh"><button id="pauseBtn" aria-label="잠깐 멈추기"><i></i><i></i></button><div id="time">0:00</div><div id="arr">도착 0곳</div></div>
   </div>
   <div id="nav" class="sh"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 3 L41 37 L24 29 L7 37 Z" fill="#ffa620" stroke="#1b1408" stroke-width="2.5" stroke-linejoin="round"/></svg><div><b id="navName"></b><span id="navDist"></span></div></div>
   <div id="sbox" class="sh"><span>속도</span><div id="sbar"><i></i></div></div>
+  <button id="dashBtn" class="big" aria-label="돌진"><span>돌진</span></button>
 </div>
 <div id="toast"></div>
 <div id="banner" class="big"></div>
@@ -849,7 +858,7 @@ function updateChallenge() {
     $('chalG').textContent = `${ch.got} / ${ch.goal}`; bar.style.transform = `scaleX(${Math.min(1, ch.got / ch.goal)})`;
     if (ch.got >= ch.goal) endChallenge(true); else if (S.z > ch.c.ze + ZL) endChallenge(false);
   } else if (ch.type === 'wall') {
-    $('chalG').textContent = S.boostCd > 0 ? '돌진 준비 중…' : '두 번 톡 쳐서 돌진!'; bar.style.transform = 'scaleX(0)';
+    $('chalG').textContent = S.boostCd > 0 ? '돌진 준비 중…' : '왼쪽 아래 돌진 버튼을 눌러!'; bar.style.transform = 'scaleX(0)';
     if (S.z > (ch.c.wallZ ?? ch.c.ze + ZL * 0.6) + S.r) endChallenge(true);
   } else {
     const left = ch.limit - (S.t - ch.t0);
@@ -1130,6 +1139,15 @@ const endPointer = (e) => {
 };
 addEventListener('pointerup', endPointer);
 addEventListener('pointercancel', endPointer);
+// the dash button: a second thumb can press it while the first one steers (two taps in a row still work too)
+const dashBtn = $('dashBtn');
+dashBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (S.mode !== 'play') return;
+  S.boostReq = true;
+  dashBtn.classList.add('hit'); setTimeout(() => dashBtn.classList.remove('hit'), 90);
+});
+dashBtn.addEventListener('contextmenu', (e) => e.preventDefault());
 const keys = new Set();
 addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); if (e.key === ' ' && S.mode === 'play') { S.boostReq = true; e.preventDefault(); } });
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
@@ -1263,7 +1281,12 @@ function updateHud() {
     $('navName').textContent = nx ? `${nx.boss ? '보스 ' : ''}${nx.label}` : tg ? tg.name : '';
     $('navDist').textContent = nx ? `${dist.toLocaleString()} m` : tg ? `${Math.round(targetDown(tg) * 100)}% 무너짐` : '';
   }
-  $('dash').classList.toggle('cool', S.boostCd > 0);
+  const off = S.mode !== 'play';
+  if (dashBtn.hidden !== off) dashBtn.hidden = off;
+  dashBtn.classList.toggle('cool', S.boostCd > 0);
+  dashBtn.style.setProperty('--p', (1 - S.boostCd / 2).toFixed(3));
+  // the hoarding only gives way to a dash: wave the button while it is ready
+  dashBtn.classList.toggle('call', !!S.chal && S.chal.type === 'wall' && S.boostCd <= 0);
   // the arrow points at the entrance of the next campus (the middle of the course where it begins), as seen from the camera
   // in the boss campus it points at the target building instead
   if (nx || tg) {
@@ -1763,7 +1786,7 @@ function showEnd() {
   const boss = bossCampus();
   $('endTitle').textContent = S.clear ? `${curStage().name} 클리어!` : S.missed === 'time' ? '시간이 다 됐어요' : S.missed ? '목표를 놓쳤어요' : S.quit ? '여기까지 굴렀어요' : '멈춰 버렸어요';
   $('endWhy').textContent = S.clear ? (STAGES[stageIx + 1] ? `${josa(STAGES[stageIx + 1].name, '이', '가')} 열렸어요` : '모든 도시를 깼어요!')
-    : S.missed ? `${boss.label}에서 빛기둥 건물 ${BOSS_TARGETS}곳을 ${bossTime(boss)}초 안에 무너뜨려야 해요 (남은 곳 ${targetsLeft().length})` : S.quit ? '' : '큰 건물은 옆으로 피하거나, 두 번 톡 쳐서 돌진해 부수세요';
+    : S.missed ? `${boss.label}에서 빛기둥 건물 ${BOSS_TARGETS}곳을 ${bossTime(boss)}초 안에 무너뜨려야 해요 (남은 곳 ${targetsLeft().length})` : S.quit ? '' : '큰 건물은 옆으로 피하거나, 돌진 버튼으로 부수세요';
   drawStages();
   $('again').textContent = S.clear && STAGES[stageIx + 1] ? `다음 도시: ${STAGES[stageIx + 1].name}` : '한 판 더';
   $('eScore').textContent = sc.toLocaleString();
